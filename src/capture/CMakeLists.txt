@@ -19,10 +19,6 @@ add_executable(${TARGET_NAME}
   ../shared/nvprint.hpp
   ../shared/nvprint.cpp
   ../shared/VRData.h
-  ../thirdparty/cereal/cereal.hpp
-  ../thirdparty/openvr/headers/openvr.h
-  ../thirdparty/magic_enum.hpp
-  ../thirdparty/quick_arg_parser.hpp
 )
 
 target_link_libraries(${TARGET_NAME}

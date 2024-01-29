@@ -17,7 +17,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-
 #ifndef __NVPRINT_H__
 #define __NVPRINT_H__
 
@@ -26,12 +25,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-
 /**
   Multiple functions and macros that should be used for logging purposes,
   rather than printf
   \fn nvprintf etc
-  
+
   - nvprintf : prints at default loglevel
   - nvprintfLevel : nvprintfLevel print at a certain loglevel
   - nvprintSetLevel : sets default loglevel
@@ -48,64 +46,63 @@
   - LOGSTATS : macro that does nvprintfLevel(LOGLEVEL_STATS)
 */
 
-
 // trick for pragma message so we can write:
 // #pragma message(__FILE__"("S__LINE__"): blah")
-#define S__(x) #x
-#define S_(x) S__(x)
-#define S__LINE__ S_(__LINE__)
+#define S__( x )  #x
+#define S_( x )   S__( x )
+#define S__LINE__ S_( __LINE__ )
 
 #ifndef LOGLEVEL_INFO
-#define LOGLEVEL_INFO 0
-#define LOGLEVEL_WARNING 1
-#define LOGLEVEL_ERROR 2
-#define LOGLEVEL_DEBUG 3
-#define LOGLEVEL_STATS 4
-#define LOGLEVEL_OK 7
+#  define LOGLEVEL_INFO    0
+#  define LOGLEVEL_WARNING 1
+#  define LOGLEVEL_ERROR   2
+#  define LOGLEVEL_DEBUG   3
+#  define LOGLEVEL_STATS   4
+#  define LOGLEVEL_OK      7
 #endif
 
-#define LOGI(...)                                                                                                      \
-  {                                                                                                                    \
-    nvprintfLevel(LOGLEVEL_INFO, __VA_ARGS__);                                                                         \
+#define LOGI( ... )                              \
+  {                                              \
+    nvprintfLevel( LOGLEVEL_INFO, __VA_ARGS__ ); \
   }
-#define LOGW(...)                                                                                                      \
-  {                                                                                                                    \
-    nvprintfLevel(LOGLEVEL_WARNING, __VA_ARGS__);                                                                      \
+#define LOGW( ... )                                 \
+  {                                                 \
+    nvprintfLevel( LOGLEVEL_WARNING, __VA_ARGS__ ); \
   }
-#define LOGE(...)                                                                                                      \
-  {                                                                                                                    \
-    nvprintfLevel(LOGLEVEL_ERROR, __VA_ARGS__);                                                                        \
+#define LOGE( ... )                               \
+  {                                               \
+    nvprintfLevel( LOGLEVEL_ERROR, __VA_ARGS__ ); \
   }
-#define LOGE_FILELINE(...)                                                                                             \
-  {                                                                                                                    \
-    nvprintfLevel(LOGLEVEL_ERROR, __FILE__ "(" S__LINE__ "): **ERROR**:\n" __VA_ARGS__);                               \
+#define LOGE_FILELINE( ... )                                                               \
+  {                                                                                        \
+    nvprintfLevel( LOGLEVEL_ERROR, __FILE__ "(" S__LINE__ "): **ERROR**:\n" __VA_ARGS__ ); \
   }
 #ifdef _DEBUG
-#define LOGD(...)                                                                                                      \
-  {                                                                                                                    \
-    nvprintfLevel(LOGLEVEL_DEBUG, __FILE__ "(" S__LINE__ "): Debug Info:\n" __VA_ARGS__);                              \
-  }
+#  define LOGD( ... )                                                                         \
+    {                                                                                         \
+      nvprintfLevel( LOGLEVEL_DEBUG, __FILE__ "(" S__LINE__ "): Debug Info:\n" __VA_ARGS__ ); \
+    }
 #else
-#define LOGD(...)
+#  define LOGD( ... )
 #endif
-#define LOGOK(...)                                                                                                     \
-  {                                                                                                                    \
-    nvprintfLevel(LOGLEVEL_OK, __VA_ARGS__);                                                                           \
+#define LOGOK( ... )                           \
+  {                                            \
+    nvprintfLevel( LOGLEVEL_OK, __VA_ARGS__ ); \
   }
-#define LOGSTATS(...)                                                                                                  \
-  {                                                                                                                    \
-    nvprintfLevel(LOGLEVEL_STATS, __VA_ARGS__);                                                                        \
+#define LOGSTATS( ... )                           \
+  {                                               \
+    nvprintfLevel( LOGLEVEL_STATS, __VA_ARGS__ ); \
   }
 
-typedef void (*PFN_NVPRINTCALLBACK)(int level, const char* fmt);
+typedef void ( *PFN_NVPRINTCALLBACK )( int level, const char * fmt );
 
-void nvprintf(const char* fmt, ...);
-void nvprintfLevel(int level, const char* fmt, ...);
-void nvprintSetLevel(int l);
+void nvprintf( const char * fmt, ... );
+void nvprintfLevel( int level, const char * fmt, ... );
+void nvprintSetLevel( int l );
 int  nvprintGetLevel();
-void nvprintSetLogFileName(const char* name);
-void nvprintSetLogging(bool b);
-void nvprintSetFileLogging(bool state, uint32_t mask = ~0);
-void nvprintSetCallback(PFN_NVPRINTCALLBACK callback);
+void nvprintSetLogFileName( const char * name );
+void nvprintSetLogging( bool b );
+void nvprintSetFileLogging( bool state, uint32_t mask = ~0 );
+void nvprintSetCallback( PFN_NVPRINTCALLBACK callback );
 
 #endif

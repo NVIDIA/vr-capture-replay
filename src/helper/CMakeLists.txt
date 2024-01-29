@@ -17,8 +17,6 @@ add_executable(${TARGET_NAME}
   ../shared/logging.h
   ../shared/nvprint.hpp
   ../shared/nvprint.cpp
-  ../thirdparty/openvr/headers/openvr.h
-  ../thirdparty/quick_arg_parser.hpp
 )
 
 target_link_libraries(${TARGET_NAME}
