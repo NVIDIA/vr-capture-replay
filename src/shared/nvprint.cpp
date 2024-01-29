@@ -17,21 +17,20 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-
 #include "nvprint.hpp"
 
 #include <mutex>
 #include <vector>
 
 #ifdef _WIN32
-#include <windows.h>
+#  include <windows.h>
 #endif
 
 static char                s_logFileNameDefault[] = "log_nvprosample.txt";
-static char*               s_logFileName          = s_logFileNameDefault;
+static char *              s_logFileName          = s_logFileNameDefault;
 static size_t              s_strBuffer_sz         = 0;
-static char*               s_strBuffer            = nullptr;
-static FILE*               s_fd                   = nullptr;
+static char *              s_strBuffer            = nullptr;
+static FILE *              s_fd                   = nullptr;
 static bool                s_bLogReady            = false;
 static bool                s_bPrintLogging        = true;
 static uint32_t            s_bPrintFileLogging    = ~0;
@@ -39,46 +38,50 @@ static int                 s_printLevel           = -1;  // <0 mean no level pre
 static PFN_NVPRINTCALLBACK s_printCallback        = nullptr;
 static std::mutex          s_mutex;
 
-void nvprintSetLogFileName(const char* name)
+void nvprintSetLogFileName( const char * name )
 {
-  std::lock_guard<std::mutex> lockGuard(s_mutex);
+  std::lock_guard<std::mutex> lockGuard( s_mutex );
 
-  if(name == NULL || strcmp(s_logFileName, name) == 0)
+  if ( name == NULL || strcmp( s_logFileName, name ) == 0 )
     return;
 
-  size_t l      = strlen(name) + 1;
+  size_t l      = strlen( name ) + 1;
   s_logFileName = new char[l];
-  strncpy_s(s_logFileName, l, name, l);
+  strncpy_s( s_logFileName, l, name, l );
 
-  if(s_fd)
+  if ( s_fd )
   {
-    fclose(s_fd);
+    fclose( s_fd );
     s_fd        = nullptr;
     s_bLogReady = false;
   }
 }
-void nvprintSetCallback(PFN_NVPRINTCALLBACK callback)
+
+void nvprintSetCallback( PFN_NVPRINTCALLBACK callback )
 {
   s_printCallback = callback;
 }
-void nvprintSetLevel(int l)
+
+void nvprintSetLevel( int l )
 {
   s_printLevel = l;
 }
+
 int nvprintGetLevel()
 {
   return s_printLevel;
 }
-void nvprintSetLogging(bool b)
+
+void nvprintSetLogging( bool b )
 {
   s_bPrintLogging = b;
 }
 
-void nvprintSetFileLogging(bool state, uint32_t mask)
+void nvprintSetFileLogging( bool state, uint32_t mask )
 {
-  std::lock_guard<std::mutex> lockGuard(s_mutex);
+  std::lock_guard<std::mutex> lockGuard( s_mutex );
 
-  if(state)
+  if ( state )
   {
     s_bPrintFileLogging |= mask;
   }
@@ -88,73 +91,75 @@ void nvprintSetFileLogging(bool state, uint32_t mask)
   }
 }
 
-void nvprintf2(va_list& vlist, const char* fmt, int level)
+void nvprintf2( va_list & vlist, const char * fmt, int level )
 {
-  if(s_bPrintLogging == false)
+  if ( s_bPrintLogging == false )
   {
     return;
   }
 
-  std::lock_guard<std::mutex> lockGuard(s_mutex);
-  if(s_strBuffer_sz == 0)
+  std::lock_guard<std::mutex> lockGuard( s_mutex );
+  if ( s_strBuffer_sz == 0 )
   {
     s_strBuffer_sz = 1024;
-    s_strBuffer    = (char*)malloc(s_strBuffer_sz);
+    s_strBuffer    = (char *)malloc( s_strBuffer_sz );
   }
-  while((vsnprintf(s_strBuffer, s_strBuffer_sz - 1, fmt, vlist)) < 0)  // means there wasn't enough room
+  while ( ( vsnprintf( s_strBuffer, s_strBuffer_sz - 1, fmt, vlist ) ) < 0 )  // means there wasn't enough room
   {
     s_strBuffer_sz *= 2;
-    char* tmp = (char*)realloc(s_strBuffer, s_strBuffer_sz);
-    if(tmp == nullptr)  // !C6308
+    char * tmp = (char *)realloc( s_strBuffer, s_strBuffer_sz );
+    if ( tmp == nullptr )  // !C6308
       return;
     s_strBuffer = tmp;
   }
 
   // Do nothing if allocating/reallocating s_strBuffer failed
-  if(!s_strBuffer)
+  if ( !s_strBuffer )
   {
     return;
   }
 
 #ifdef WIN32
-  OutputDebugStringA(s_strBuffer);
+  OutputDebugStringA( s_strBuffer );
 #endif
 
-  if(s_bPrintFileLogging & (1 << level))
+  if ( s_bPrintFileLogging & ( 1 << level ) )
   {
-    if(s_bLogReady == false)
+    if ( s_bLogReady == false )
     {
 #pragma warning( push )
 #pragma warning( disable : 4996 )
-      s_fd        = fopen(s_logFileName, "wt");
-#pragma warning(pop)
+      s_fd = fopen( s_logFileName, "wt" );
+#pragma warning( pop )
       s_bLogReady = true;
     }
-    if(s_fd)
+    if ( s_fd )
     {
-      fputs(s_strBuffer, s_fd);
-      fflush(s_fd);
+      fputs( s_strBuffer, s_fd );
+      fflush( s_fd );
     }
   }
 
-  if(s_printCallback)
+  if ( s_printCallback )
   {
-    s_printCallback(level, s_strBuffer);
+    s_printCallback( level, s_strBuffer );
   }
-  ::printf("%s", s_strBuffer);
+  ::printf( "%s", s_strBuffer );
 }
-void nvprintf(const char* fmt, ...)
+
+void nvprintf( const char * fmt, ... )
 {
   //    int r = 0;
   va_list vlist;
-  va_start(vlist, fmt);
-  nvprintf2(vlist, fmt, s_printLevel);
-  va_end(vlist);
+  va_start( vlist, fmt );
+  nvprintf2( vlist, fmt, s_printLevel );
+  va_end( vlist );
 }
-void nvprintfLevel(int level, const char* fmt, ...)
+
+void nvprintfLevel( int level, const char * fmt, ... )
 {
   va_list vlist;
-  va_start(vlist, fmt);
-  nvprintf2(vlist, fmt, level);
-  va_end(vlist);
+  va_start( vlist, fmt );
+  nvprintf2( vlist, fmt, level );
+  va_end( vlist );
 }

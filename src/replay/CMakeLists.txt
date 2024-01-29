@@ -28,9 +28,6 @@ add_library(${TARGET_NAME} SHARED
   ../shared/nvprint.hpp
   ../shared/nvprint.cpp
   ../shared/VRData.h
-  ../thirdparty/cereal/cereal.hpp
-  ../thirdparty/openvr/headers/openvr_driver.h
-  ../thirdparty/magic_enum.hpp
   ${OPENVR_DIR}/samples/drivers/utils/driverlog/driverlog.cpp
   ${OPENVR_DIR}/samples/drivers/utils/driverlog/driverlog.h
 )

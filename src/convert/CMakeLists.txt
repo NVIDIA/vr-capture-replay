@@ -39,7 +39,6 @@ add_executable(${TARGET_NAME}
   ../shared/nvprint.hpp
   ../shared/nvprint.cpp
   ../shared/VRData.h
-  ../thirdparty/cereal/cereal.hpp
 )
 
 get_directory_property(hasParent PARENT_DIRECTORY)

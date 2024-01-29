@@ -35,7 +35,6 @@ add_compile_definitions(PROJECT_NAME="${TARGET_NAME}")
 add_executable(${TARGET_NAME}
   sample.cpp
   ../shared/VRData.h
-  ../thirdparty/cereal/cereal.hpp
   readme.txt
 )
 

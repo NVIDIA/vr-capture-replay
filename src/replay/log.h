@@ -10,13 +10,11 @@
 
 #pragma once
 
-
 #include "driverlog/driverlog.h"
 #include "shared/logging.h"
 
-
-#define LOG(...)                        \
-{                                       \
-  DriverLog(__VA_ARGS__);               \
-  LOGI(__VA_ARGS__);                    \
-}
+#define LOG( ... )            \
+  {                           \
+    DriverLog( __VA_ARGS__ ); \
+    LOGI( __VA_ARGS__ );      \
+  }

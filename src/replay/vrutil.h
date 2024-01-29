@@ -8,19 +8,18 @@
  * license agreement from NVIDIA CORPORATION is strictly prohibited.
  */
 
-
 #pragma once
 
 #include "shared/VRData.h"
 
-int setChaperone(const VRData::Chaperone& c);
+int setChaperone( const VRData::Chaperone & c );
 
 enum GPUResult
 {
-    NO_NV_GPU,
-    NV_GPU,
-    INITFAILED,
-    ENUMFAILED
+  NO_NV_GPU,
+  NV_GPU,
+  INITFAILED,
+  ENUMFAILED
 };
 
-GPUResult hasNVGPU(std::string& description);
+GPUResult hasNVGPU( std::string & description );

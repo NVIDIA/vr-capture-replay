@@ -11,43 +11,40 @@
 #pragma once
 
 #ifndef NOMINMAX
-#define NOMINMAX
+#  define NOMINMAX
 #endif
-
+#include <windows.h>  // windows.h needs to be included before psapi.h !
+/**/
 #include <algorithm>
 #include <chrono>
-#include <iomanip>
-#include <iostream>
 #include <filesystem>
 #include <fstream>
+#include <iomanip>
+#include <iostream>
+#include <openvr.h>
+#include <psapi.h>
 #include <set>
 #include <string>
 #include <thread>
 #include <vector>
 
-#include <openvr.h>
-
-#include "windows.h"
-#include "psapi.h"
-
 #pragma warning( push )
 #pragma warning( disable : 4267 )
 
-#define STRING2(x) #x
-#define STRING(x) STRING2(x)
- // override some defaults for magic_enum because it's normally not built for huge enums 
- // like vr::ETrackedDeviceProperty - and for those huge numbers we have to also
- // override /constexpr:steps in the project's CMakeLists.txt
-#if 1 // set to 0 for faster compilation
-#pragma message (__FILE__ ":" STRING(__LINE__) ": This will take a while because of a big magic_enum range")
-#define MAGIC_ENUM_NO_CHECK_FLAGS
-#define MAGIC_ENUM_RANGE_MIN 0
-#define MAGIC_ENUM_RANGE_MAX 7005
+#define STRING2( x ) #x
+#define STRING( x )  STRING2( x )
+// override some defaults for magic_enum because it's normally not built for huge enums
+// like vr::ETrackedDeviceProperty - and for those huge numbers we have to also
+// override /constexpr:steps in the project's CMakeLists.txt
+#if 1  // set to 0 for faster compilation
+#  pragma message( __FILE__ ":" STRING( __LINE__ ) ": This will take a while because of a big magic_enum range" )
+#  define MAGIC_ENUM_NO_CHECK_FLAGS
+#  define MAGIC_ENUM_RANGE_MIN 0
+#  define MAGIC_ENUM_RANGE_MAX 7005
 #endif
-#include "thirdparty/magic_enum.hpp" 
-
+#include "thirdparty/magic_enum.hpp"
 #include "thirdparty/quick_arg_parser.hpp"
-#pragma warning(pop)
+#pragma warning( pop )
 
 #include "shared/VRData.h"
 
@@ -55,13 +52,13 @@ void initVR();
 
 void initChaperone();
 
-void printDeviceInfo(const vr::TrackedDeviceIndex_t deviceId);
+void printDeviceInfo( const vr::TrackedDeviceIndex_t deviceId );
 
-void collectDeviceProperties(const vr::TrackedDeviceIndex_t deviceId, VRData::Device& device);
+void collectDeviceProperties( const vr::TrackedDeviceIndex_t deviceId, VRData::Device & device );
 
-vr::EVRInputError getActionHandle(VRData::Action action, vr::VRActionHandle_t& a);
+vr::EVRInputError getActionHandle( VRData::Action action, vr::VRActionHandle_t & a );
 
-void setupActions(std::string modelNumber, VRData::Hand hand);
+void setupActions( std::string modelNumber, VRData::Hand hand );
 
 void printConfiguration();
 
@@ -81,4 +78,4 @@ std::vector<VRData::DevicePose> getDevicePoses();
 
 void initOverlay();
 
-void notifyHMD(std::string message, uint32_t overrideTime = 0);
+void notifyHMD( std::string message, uint32_t overrideTime = 0 );
