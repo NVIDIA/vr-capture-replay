@@ -1,0 +1,218 @@
+{
+  "default_bindings": [
+    {
+      "controller_type": "knuckles",
+      "binding_url": "bindings_index_controller.json"
+    },
+    {
+      "controller_type": "vive_controller",
+      "binding_url": "bindings_vive_controller.json"
+    },
+    {
+      "controller_type": "vive_pro",
+      "binding_url": "bindings_vive_pro_controller.json"
+    },
+    {
+      "controller_type": "oculus_touch",
+      "binding_url": "bindings_oculus_touch_controller.json"
+    }
+  ], 
+  "actions": [
+    {
+      "name": "/actions/record/in/left_system_click",
+      "type": "boolean"
+    },
+    {
+      "name": "/actions/record/in/right_system_click",
+      "type": "boolean"
+    },
+    {
+      "name": "/actions/record/in/left_grip_click",
+      "type": "boolean"
+    },
+    {
+      "name": "/actions/record/in/right_grip_click",
+      "type": "boolean"
+    },
+    {
+      "name": "/actions/record/in/left_grip_touch",
+      "type": "boolean"
+    },
+    {
+      "name": "/actions/record/in/right_grip_touch",
+      "type": "boolean"
+    },
+    {
+      "name": "/actions/record/in/left_grip_value",
+      "type": "vector1"
+    },
+    {
+      "name": "/actions/record/in/right_grip_value",
+      "type": "vector1"
+    },
+    {
+      "name": "/actions/record/in/left_grip_force",
+      "type": "vector1"
+    },
+    {
+      "name": "/actions/record/in/right_grip_force",
+      "type": "vector1"
+    },
+    {
+      "name": "/actions/record/in/left_application_menu_click",
+      "requirement": "optional",
+      "type": "boolean"
+    },
+    {
+      "name": "/actions/record/in/right_application_menu_click",
+      "requirement": "optional",
+      "type": "boolean"
+    },
+    {
+      "name": "/actions/record/in/left_a_click",
+      "requirement": "optional",
+      "type": "boolean"
+    },
+    {
+      "name": "/actions/record/in/right_a_click",
+      "requirement": "optional",
+      "type": "boolean"
+    },
+    {
+      "name": "/actions/record/in/left_b_click",
+      "requirement": "optional",
+      "type": "boolean"
+    },
+    {
+      "name": "/actions/record/in/right_b_click",
+      "requirement": "optional",
+      "type": "boolean"
+    },
+    {
+      "name": "/actions/record/in/left_x_click",
+      "requirement": "optional",
+      "type": "boolean"
+    },
+    {
+      "name": "/actions/record/in/right_x_click",
+      "requirement": "optional",
+      "type": "boolean"
+    },
+    {
+      "name": "/actions/record/in/left_y_click",
+      "requirement": "optional",
+      "type": "boolean"
+    },
+    {
+      "name": "/actions/record/in/right_y_click",
+      "requirement": "optional",
+      "type": "boolean"
+    },
+    {
+      "name": "/actions/record/in/left_trigger_touch",
+      "type": "boolean"
+    },
+    {
+      "name": "/actions/record/in/right_trigger_touch",
+      "type": "boolean"
+    },
+    {
+      "name": "/actions/record/in/left_trigger_click",
+      "type": "boolean"
+    },
+    {
+      "name": "/actions/record/in/right_trigger_click",
+      "type": "boolean"
+    },
+    {
+      "name": "/actions/record/in/left_trigger_value",
+      "type": "vector1"
+    },
+    {
+      "name": "/actions/record/in/right_trigger_value",
+      "type": "vector1"
+    },
+    {
+      "name": "/actions/record/in/left_trackpad_click",
+      "type": "boolean"
+    },
+    {
+      "name": "/actions/record/in/right_trackpad_click",
+      "type": "boolean"
+    },
+    {
+      "name": "/actions/record/in/left_trackpad_touch",
+      "type": "boolean"
+    },
+    {
+      "name": "/actions/record/in/right_trackpad_touch",
+      "type": "boolean"
+    },
+    {
+      "name": "/actions/record/in/left_trackpad_value",
+      "type": "vector2"
+    },
+    {
+      "name": "/actions/record/in/right_trackpad_value",
+      "type": "vector2"
+    },
+    {
+      "name": "/actions/record/in/left_joystick_click",
+      "type": "boolean"
+    },
+    {
+      "name": "/actions/record/in/right_joystick_click",
+      "type": "boolean"
+    },
+    {
+      "name": "/actions/record/in/left_joystick_touch",
+      "type": "boolean"
+    },
+    {
+      "name": "/actions/record/in/right_joystick_touch",
+      "type": "boolean"
+    },
+    {
+      "name": "/actions/record/in/left_joystick_value",
+      "type": "vector2"
+    },
+    {
+      "name": "/actions/record/in/right_joystick_value",
+      "type": "vector2"
+    },
+    {
+      "name": "/actions/record/in/triggerhaptic",
+      "type": "boolean"
+    },
+    {
+      "name": "/actions/record/in/Left_Pose",
+      "type": "pose"
+    },
+    {
+      "name": "/actions/record/in/Right_Pose",
+      "type": "pose"
+    },
+    {
+      "name": "/actions/record/out/left_haptic",
+      "type": "vibration"
+    },
+    {
+      "name": "/actions/record/out/right_haptic",
+      "type": "vibration"
+    }
+  ],
+  "action_sets": [
+    {
+      "name": "/actions/record",
+      "usage": "single"
+    }
+  ],
+    "localization" : [
+        {
+            "language_tag": "en_US",
+            "/actions/record/in/left_system_click" : "System Menu",
+            "/actions/record/in/right_system_click" : "System Menu",
+            "/actions/record/in/triggerhaptic" : "Trigger Haptic Pulse"
+        }
+    ]
+}
