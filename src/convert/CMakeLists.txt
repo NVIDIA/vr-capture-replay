@@ -27,7 +27,7 @@
 */
 ]]
 
-cmake_minimum_required(VERSION 3.0.2)
+cmake_minimum_required(VERSION 3.5)
 
 set(TARGET_NAME convert)
 add_compile_definitions(PROJECT_NAME="${TARGET_NAME}")
