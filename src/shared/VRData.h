@@ -27,13 +27,12 @@
 
 #pragma once
 
-#include "thirdparty/cereal/archives/binary.hpp"
-#include "thirdparty/cereal/archives/json.hpp"
-#include "thirdparty/cereal/types/map.hpp"
-#include "thirdparty/cereal/types/set.hpp"
-#include "thirdparty/cereal/types/string.hpp"
-#include "thirdparty/cereal/types/vector.hpp"
-
+#include <cereal/archives/binary.hpp>
+#include <cereal/archives/json.hpp>
+#include <cereal/types/map.hpp>
+#include <cereal/types/set.hpp>
+#include <cereal/types/string.hpp>
+#include <cereal/types/vector.hpp>
 #include <map>
 #include <set>
 #include <vector>

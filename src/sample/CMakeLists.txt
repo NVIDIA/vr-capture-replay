@@ -27,40 +27,30 @@
 */
 ]]
 
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required( VERSION 3.5 )
 
-set(TARGET_NAME sample)
-add_compile_definitions(PROJECT_NAME="${TARGET_NAME}")
+set( TARGET_NAME sample )
 
-add_executable(${TARGET_NAME}
-  sample.cpp
-  ../shared/VRData.h
-  readme.txt
-)
+add_executable( ${TARGET_NAME} sample.cpp ../shared/VRData.h readme.txt )
 
-get_directory_property(hasParent PARENT_DIRECTORY)
-if(hasParent)
+target_compile_definitions( ${TARGET_NAME} PUBLIC PROJECT_NAME="${TARGET_NAME}" )
+
+get_directory_property( hasParent PARENT_DIRECTORY )
+if( hasParent )
   set_target_properties( ${TARGET_NAME} PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY_RELEASE ${OUT_DIR}/${TARGET_NAME}
-    RUNTIME_OUTPUT_DIRECTORY_DEBUG ${OUT_DIR}/${TARGET_NAME}
-  )
+    RUNTIME_OUTPUT_DIRECTORY_DEBUG ${OUT_DIR}/${TARGET_NAME} )
 else()
-  project(Sample)
+  project( Sample )
   set_target_properties( ${TARGET_NAME} PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY_RELEASE ${CMAKE_SOURCE_DIR}
-    RUNTIME_OUTPUT_DIRECTORY_DEBUG ${CMAKE_SOURCE_DIR}
-  )
-  set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT ${TARGET_NAME})
+    RUNTIME_OUTPUT_DIRECTORY_DEBUG ${CMAKE_SOURCE_DIR} )
+  set_target_properties( ${TARGET_NAME} PROPERTIES DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} VS_STARTUP_PROJECT ${TARGET_NAME} )
 endif()
 
-include_directories(
-  .
-  shared
-  thirdparty
-)
+set_target_properties( ${TARGET_NAME} PROPERTIES CXX_STANDARD 17 )
 
-target_link_libraries(${TARGET_NAME}
-)
+target_include_directories( ${TARGET_NAME} PUBLIC . shared thirdparty ../thirdparty/cereal/include )
 
-set_property(TARGET ${TARGET_NAME} PROPERTY CXX_STANDARD 17)
+target_link_libraries( ${TARGET_NAME} )
 
