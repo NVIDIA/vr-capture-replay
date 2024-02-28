@@ -9,34 +9,29 @@
 ]]
 
 
-set(TARGET_NAME capture)
-add_compile_definitions(PROJECT_NAME="${TARGET_NAME}")
+set( TARGET_NAME capture )
 
-add_executable(${TARGET_NAME}
+add_executable( ${TARGET_NAME}
   capture.h
   capture.cpp
   ../shared/logging.h
   ../shared/nvprint.hpp
   ../shared/nvprint.cpp
-  ../shared/VRData.h
-)
+  ../shared/VRData.h )
 
-target_link_libraries(${TARGET_NAME}
-  ${OPENVR_LIBRARIES}
-)
+target_compile_definitions( ${TARGET_NAME} PUBLIC PROJECT_NAME="${TARGET_NAME}" )
 
-set_property(TARGET ${TARGET_NAME} PROPERTY CXX_STANDARD 20)
+target_link_libraries( ${TARGET_NAME} ${OPENVR_LIBRARIES} )
+
+set_target_properties( ${TARGET_NAME} PROPERTIES CXX_STANDARD 20 )
 
 set_target_properties( ${TARGET_NAME} PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY_RELEASE ${OUT_DIR}/${TARGET_NAME}
-  RUNTIME_OUTPUT_DIRECTORY_DEBUG ${OUT_DIR}/${TARGET_NAME}
-)
+  RUNTIME_OUTPUT_DIRECTORY_DEBUG ${OUT_DIR}/${TARGET_NAME} )
 
-target_compile_options( ${TARGET_NAME}
-  PUBLIC "/constexpr:steps 2048576"
-)
+target_compile_options( ${TARGET_NAME} PUBLIC "/constexpr:steps 2048576" )
 
+target_include_directories( ${TARGET_NAME} PUBLIC ../thirdparty/cereal/include )
 
-add_custom_command(TARGET ${TARGET_NAME} POST_BUILD 
-  COMMAND ${CMAKE_COMMAND} -E copy ${OPENVR_DIR}/bin/win64/openvr_api.dll ${OUT_DIR}/${TARGET_NAME}/openvr_api.dll
-)
+add_custom_command( TARGET ${TARGET_NAME} POST_BUILD 
+  COMMAND ${CMAKE_COMMAND} -E copy ${OPENVR_DIR}/bin/win64/openvr_api.dll ${OUT_DIR}/${TARGET_NAME}/openvr_api.dll )

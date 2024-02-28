@@ -9,12 +9,10 @@
 ]]
  
 
-set(FOLDER_NAME replay)
-set(TARGET_NAME driver_VCR_${FOLDER_NAME})
-add_compile_definitions(PROJECT_NAME="${TARGET_NAME}")
+set( FOLDER_NAME replay )
+set( TARGET_NAME driver_VCR_${FOLDER_NAME} )
 
-
-add_library(${TARGET_NAME} SHARED
+add_library( ${TARGET_NAME} SHARED
   driver_replay.cpp
   log.h
   OpenVR_HMDDriver.h
@@ -32,22 +30,18 @@ add_library(${TARGET_NAME} SHARED
   ${OPENVR_DIR}/samples/drivers/utils/driverlog/driverlog.h
 )
 
-add_definitions(-DDRIVER_SAMPLE_EXPORTS)
+target_compile_definitions( ${TARGET_NAME} PUBLIC PROJECT_NAME="${TARGET_NAME}" DRIVER_SAMPLE_EXPORTS )
 
-target_link_libraries(${TARGET_NAME}
-  ${OPENVR_LIBRARIES}
-  d3d11.lib
-  dxgi.lib
-)
+target_include_directories( ${TARGET_NAME} PUBLIC ../thirdparty/cereal/include )
 
-set_property(TARGET ${TARGET_NAME} PROPERTY CXX_STANDARD 20)
+target_link_libraries( ${TARGET_NAME} ${OPENVR_LIBRARIES} d3d11.lib dxgi.lib )
+
+set_target_properties( ${TARGET_NAME} PROPERTIES CXX_STANDARD 20 )
 
 # can't use TARGET_NAME here because OpenVR expects driver_replay.dll under replay directory
 set_target_properties( ${TARGET_NAME} PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY_RELEASE ${OUT_DIR}/${FOLDER_NAME}/bin/win64
-  RUNTIME_OUTPUT_DIRECTORY_DEBUG ${OUT_DIR}/${FOLDER_NAME}/bin/win64
-)
+  RUNTIME_OUTPUT_DIRECTORY_DEBUG ${OUT_DIR}/${FOLDER_NAME}/bin/win64 )
 
-add_custom_command(TARGET ${TARGET_NAME} POST_BUILD 
-  COMMAND ${CMAKE_COMMAND} -E copy ${OPENVR_DIR}/bin/win64/openvr_api.dll ${OUT_DIR}/${FOLDER_NAME}/bin/win64/openvr_api.dll
-)
+add_custom_command( TARGET ${TARGET_NAME} POST_BUILD 
+  COMMAND ${CMAKE_COMMAND} -E copy ${OPENVR_DIR}/bin/win64/openvr_api.dll ${OUT_DIR}/${FOLDER_NAME}/bin/win64/openvr_api.dll )
