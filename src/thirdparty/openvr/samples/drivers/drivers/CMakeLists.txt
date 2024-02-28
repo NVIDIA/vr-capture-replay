@@ -1,4 +1,0 @@
-add_subdirectory(barebones)
-add_subdirectory(handskeletonsimulation)
-add_subdirectory(simplecontroller)
-add_subdirectory(simplehmd)
