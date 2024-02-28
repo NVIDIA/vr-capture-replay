@@ -30,6 +30,8 @@ set_target_properties( ${TARGET_NAME} PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY_DEBUG ${OUT_DIR}/${TARGET_NAME}
 )
 
+target_include_directories( ${TARGET_NAME} PUBLIC ../thirdparty )
+
 add_custom_command(TARGET ${TARGET_NAME} POST_BUILD 
   COMMAND ${CMAKE_COMMAND} -E copy ${OPENVR_DIR}/bin/win64/openvr_api.dll ${OUT_DIR}/${TARGET_NAME}/openvr_api.dll
 )

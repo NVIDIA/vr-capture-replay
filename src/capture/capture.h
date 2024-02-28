@@ -43,7 +43,7 @@
 #  define MAGIC_ENUM_RANGE_MAX 7005
 #endif
 #include "magic_enum/magic_enum.hpp"
-#include "thirdparty/quick_arg_parser.hpp"
+#include "quick_arg_parser/quick_arg_parser.hpp"
 #pragma warning( pop )
 
 #include "shared/VRData.h"
