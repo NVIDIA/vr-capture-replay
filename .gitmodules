@@ -4,3 +4,6 @@
 [submodule "src/thirdparty/openvr"]
 	path = src/thirdparty/openvr
 	url = https://github.com/ValveSoftware/openvr.git
+[submodule "src/thirdparty/magic_enum"]
+	path = src/thirdparty/magic_enum
+	url = https://github.com/Neargye/magic_enum.git

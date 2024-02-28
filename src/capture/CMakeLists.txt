@@ -31,7 +31,7 @@ set_target_properties( ${TARGET_NAME} PROPERTIES
 
 target_compile_options( ${TARGET_NAME} PUBLIC "/constexpr:steps 2048576" )
 
-target_include_directories( ${TARGET_NAME} PUBLIC ../thirdparty/cereal/include )
+target_include_directories( ${TARGET_NAME} PUBLIC ../thirdparty/cereal/include ../thirdparty/magic_enum/include )
 
 add_custom_command( TARGET ${TARGET_NAME} POST_BUILD 
   COMMAND ${CMAKE_COMMAND} -E copy ${OPENVR_DIR}/bin/win64/openvr_api.dll ${OUT_DIR}/${TARGET_NAME}/openvr_api.dll )

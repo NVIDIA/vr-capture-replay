@@ -42,7 +42,7 @@
 #  define MAGIC_ENUM_RANGE_MIN 0
 #  define MAGIC_ENUM_RANGE_MAX 7005
 #endif
-#include "thirdparty/magic_enum.hpp"
+#include "magic_enum/magic_enum.hpp"
 #include "thirdparty/quick_arg_parser.hpp"
 #pragma warning( pop )
 
