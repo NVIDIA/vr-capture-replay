@@ -1,3 +1,6 @@
 [submodule "src/thirdparty/cereal"]
 	path = src/thirdparty/cereal
 	url = https://github.com/USCiLab/cereal.git
+[submodule "src/thirdparty/openvr"]
+	path = src/thirdparty/openvr
+	url = https://github.com/ValveSoftware/openvr.git
