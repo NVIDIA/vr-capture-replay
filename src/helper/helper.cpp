@@ -12,7 +12,7 @@
 
 #pragma warning( push )
 #pragma warning( disable : 4267 )
-#include "thirdparty/quick_arg_parser.hpp"
+#include "quick_arg_parser/quick_arg_parser.hpp"
 #pragma warning( pop )
 
 #include <windows.h>  // windows.h needs to be included before psapi.h !
