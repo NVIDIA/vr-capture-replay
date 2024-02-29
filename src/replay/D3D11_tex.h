@@ -43,24 +43,25 @@ class RenderHelper
   ID3D11DeviceContext * m_immContext{ nullptr };
 
 public:
-  bool hasNVGPU()
+  bool hasGPU()
   {
     // Init DX
     CreateDXGIFactory1( __uuidof( IDXGIFactory1 ), (void **)&m_dxgiFactory1 );
-    if ( !m_dxgiFactory1 )
+    if ( m_dxgiFactory1 )
     {
-      return false;
-    }
-    IDXGIAdapter *    pAdapter = nullptr;
-    DXGI_ADAPTER_DESC adapterDesc;
+      IDXGIAdapter1 *    pAdapter = nullptr;
+      DXGI_ADAPTER_DESC1 adapterDesc;
 
-    // look for NV GPU
-    for ( UINT iAdapter = 0; m_dxgiFactory1->EnumAdapters( iAdapter, &pAdapter ) != DXGI_ERROR_NOT_FOUND; ++iAdapter )
-    {
-      pAdapter->GetDesc( &adapterDesc );
-      if ( adapterDesc.VendorId == VENDORID_NVIDIA )
+      // look for a GPU
+      // a GPU is considered to be no software adapter
+      for ( UINT iAdapter = 0; m_dxgiFactory1->EnumAdapters1( iAdapter, &pAdapter ) != DXGI_ERROR_NOT_FOUND; ++iAdapter )
       {
-        return true;
+        pAdapter->GetDesc1( &adapterDesc );
+        pAdapter->Release();
+        if ( !( adapterDesc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE ) )
+        {
+          return true;
+        }
       }
     }
 
