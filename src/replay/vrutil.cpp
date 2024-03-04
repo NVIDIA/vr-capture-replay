@@ -55,7 +55,7 @@ int setChaperone( const VRData::Chaperone & c )
   return eError;
 }
 
-GPUResult hasNVGPU( std::string & description )
+GPUResult hasGPU( std::string & description )
 {
   vr::EVRInitError eError   = vr::VRInitError_None;
   vr::IVRSystem *  vrSystem = vr::VR_Init( &eError, vr::VRApplication_Utility );
@@ -73,10 +73,11 @@ GPUResult hasNVGPU( std::string & description )
     IDXGIAdapter1 * pAdapter;
     if ( FAILED( pFactory->EnumAdapters1( nAdapterIndex, &pAdapter ) ) )
     {
-      return GPUResult::ENUMFAILED;
+      return GPUResult::enumFailed;
     }
     DXGI_ADAPTER_DESC1 adapterDesc;
     pAdapter->GetDesc1( &adapterDesc );
+    pAdapter->Release();
 
     std::wstring ws( adapterDesc.Description );
 #pragma warning( push )
@@ -85,17 +86,11 @@ GPUResult hasNVGPU( std::string & description )
 #pragma warning( pop )
     description = s;
 
-    if ( adapterDesc.VendorId == 0x10DE )
-    {
-      return NV_GPU;
-    }
-    else
-    {
-      return NO_NV_GPU;
-    }
+    // a GPU is considered to be no software adapter
+    return ( adapterDesc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE ) ? GPUResult::noGPU : GPUResult::foundGPU;
   }
   else
   {
-    return INITFAILED;
+    return GPUResult::initFailed;
   }
 }

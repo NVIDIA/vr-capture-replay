@@ -177,10 +177,10 @@ vr::EVRInitError OpenVR_ServerDriver::Init( vr::IVRDriverContext * pDriverContex
   // check for NV GPU early to keep the log a little cleaner
   {
     RenderHelper renderHelper;
-    if ( !renderHelper.hasNVGPU() )
+    if ( !renderHelper.hasGPU() )
     {
-      int msgboxID = MessageBox( NULL, "Couldn't find an NVIDIA GPU", "Incompatible Hardware", MB_ICONERROR | MB_OK );
-      LOG( "OpenVR_HMDDriver: ERROR: Initialization failed, no NVIDIA GPU found.\n" );
+      int msgboxID = MessageBox( NULL, "Couldn't find a GPU", "Incompatible Hardware", MB_ICONERROR | MB_OK );
+      LOG( "OpenVR_HMDDriver: ERROR: Initialization failed, no GPU found.\n" );
       return vr::VRInitError_Driver_Failed;
     }
   }
@@ -280,15 +280,15 @@ void OpenVR_ServerDriver::RunFrame()
   if ( first )
   {
     std::string description;
-    GPUResult   r = hasNVGPU( description );
+    GPUResult   r = hasGPU( description );
 
-    if ( r == GPUResult::NV_GPU )
+    if ( r == GPUResult::foundGPU )
     {
       LOG( "GPU detected: %s\n", description.c_str() );
     }
     else
     {
-      LOG( "No NV GPU found or SteamVR error, aborting\n" );
+      LOG( "No GPU found or SteamVR error, aborting\n" );
       exit( 1 );
     }
 

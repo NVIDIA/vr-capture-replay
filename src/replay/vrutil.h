@@ -14,12 +14,12 @@
 
 int setChaperone( const VRData::Chaperone & c );
 
-enum GPUResult
+enum class GPUResult
 {
-  NO_NV_GPU,
-  NV_GPU,
-  INITFAILED,
-  ENUMFAILED
+  foundGPU,
+  noGPU,
+  initFailed,
+  enumFailed
 };
 
-GPUResult hasNVGPU( std::string & description );
+GPUResult hasGPU( std::string & description );
