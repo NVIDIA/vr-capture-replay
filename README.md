@@ -3,6 +3,8 @@
 ## Third party modules
 This project will download and install additional third-party open source software projects. Review the license terms of these open source projects before use.
 
+## Resources
+[VCR Webinar](https://info.nvidia.com/xr-vcr-reg-page.html)
 
 
 ## Getting started
