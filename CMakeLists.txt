@@ -59,12 +59,9 @@ add_subdirectory(src/sample)
 add_custom_target(VCR ALL
   COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/src/aux_files ${OUT_DIR}
 
-  COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/src/thirdparty/licenses ${OUT_DIR}/3rd_party_licenses
-
   COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/src/sample ${OUT_DIR}/sample
   COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/src/shared ${OUT_DIR}/sample/shared
   COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/src/thirdparty/cereal ${OUT_DIR}/sample/thirdparty/cereal
-  COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_SOURCE_DIR}/src/thirdparty/licenses/cereal_license.txt ${OUT_DIR}/sample/thirdparty
   
   COMMAND ${CMAKE_COMMAND} -E make_directory ${OUT_DIR}/logs
 
