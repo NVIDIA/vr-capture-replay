@@ -343,6 +343,11 @@ The sample filter can be run by calling the command line `sample.exe <input.bin>
 are valid paths for reading and writing tracking data. Note that the sample will not overwrite existing files.
 `<iterations>` is the number of passes the sample should take over the tracking data.
 
-## Resources
+# Resources
+
+We've presented VCR at different conferences and events, here are some links to a few:
+
 [VCR Webinar](https://info.nvidia.com/xr-vcr-reg-page.html)
+
+[VCR presentation at AWE](https://www.youtube.com/watch?v=IOwR58p70z)
 
