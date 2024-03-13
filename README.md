@@ -23,6 +23,13 @@ tracking files of VCR 0.7 and later to the most recent version of VCR.
 ## Third party modules
 This project will download and install additional third-party open source software projects. Review the license terms of these open source projects before use.
 
+# Building
+
+Clone the repository with --recurse-submodules so the dependencies are available.
+
+The VCR root directory contains scripts to generate a solution `generate_solution.cmd` and to perform a complete build `build.cmd`.
+CMAke 3.5 or higher is required.
+
 # VCR User guide
 
 ## Workflow
