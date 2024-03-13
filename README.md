@@ -30,6 +30,8 @@ Clone the repository with --recurse-submodules so the dependencies are available
 The VCR root directory contains scripts to generate a solution `generate_solution.cmd` and to perform a complete build `build.cmd`.
 CMAke 3.5 or higher is required.
 
+Build files will be generated into the `_build` directory, the VCR package will be generated into the `_out` directory.
+
 # VCR User guide
 
 ## Workflow
