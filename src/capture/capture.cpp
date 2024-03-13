@@ -30,8 +30,6 @@ struct Args : MainArguments<Args>
   uint32_t notifyTime = option( "note_time", 't', "for how long to show notifications, default: 1000ms" ) = 1000;
 };
 
-std::shared_ptr<Args> args;
-
 vr::IVRSystem *         vrSystem;
 vr::IVRInput *          vrInput;
 vr::VRActiveActionSet_t activeActionSet;
@@ -72,11 +70,17 @@ struct ActionCaptureData
 
 std::vector<ActionCaptureData> actionCaptureDataVec;
 
+vr::VRActionHandle_t                         getActionHandle( std::string const & actionString );
+std::pair<std::string, vr::VRActionHandle_t> setupAction( std::vector<std::string> const & actionDescription, std::string const & actionKind );
+std::string                                  to_string( VRData::Action const & action );
+
 int main( int argc, char * argv[] )
 {
+  std::unique_ptr<Args> args;
+
   try
   {
-    args = std::make_shared<Args>( Args{ { argc, argv } } );
+    args = std::make_unique<Args>( Args{ { argc, argv } } );
   }
   catch ( std::exception & e )
   {
@@ -96,7 +100,7 @@ int main( int argc, char * argv[] )
   {
     initVR();
     initChaperone();
-    initOverlay();
+    initOverlay( args->noNotifyHMD );
   }
   catch ( std::exception & e )
   {
@@ -220,15 +224,15 @@ int main( int argc, char * argv[] )
   deviceIndices.insert( deviceIndices.end(), tmpIndices.begin(), tmpIndices.end() );
   hardwareData.m_controllers.insert( hardwareData.m_controllers.end(), tmpControllers.begin(), tmpControllers.end() );
 
-  startActionString = setupStartAction();
-  setupSegmentationAction();
+  std::tie( startActionString, startActionHandle ) = setupAction( args->startAction, "start recording" );
+  std::tie( std::ignore, segmentActionHandle )     = setupAction( args->segmentAction, "segment recording" );
 
   printConfiguration();
 
   // wait for the start action, if configured
   if ( startActionHandle != vr::k_ulInvalidActionHandle )
   {
-    waitForStartAction();
+    waitForStartAction( !args->noNotifyHMD, args->notifyTime );
   }
 
   auto start = std::chrono::steady_clock::now();
@@ -252,7 +256,7 @@ int main( int argc, char * argv[] )
 
     LOGI( "\n\nRecording events, press ESC to stop, SPACE to write segment...\n\n" );
 
-    notifyHMD( "Starting VCR capture" );
+    notifyHMD( !args->noNotifyHMD, "Starting VCR capture", args->notifyTime );
 
     while ( true )
     {
@@ -267,7 +271,7 @@ int main( int argc, char * argv[] )
       {
         // write and re-init, continue recording
         LOGI( "Generating segment\n" );
-        notifyHMD( "Generating segment" );
+        notifyHMD( !args->noNotifyHMD, "Generating segment", args->notifyTime );
         writeTrackingData();
         start        = std::chrono::steady_clock::now();
         trackingData = VRData::TrackingData{};
@@ -305,7 +309,7 @@ int main( int argc, char * argv[] )
         {
           // write and re-init, continue recording
           LOGI( "Generating segment\n" );
-          notifyHMD( "Generating segment" );
+          notifyHMD( !args->noNotifyHMD, "Generating segment", args->notifyTime );
           writeTrackingData();
           start        = std::chrono::steady_clock::now();
           trackingData = VRData::TrackingData{};
@@ -371,7 +375,7 @@ int main( int argc, char * argv[] )
   }
   if ( !args->noNotifyHMD )
   {
-    notifyHMD( "Shutting down VCR capture" );
+    notifyHMD( !args->noNotifyHMD, "Shutting down VCR capture", args->notifyTime );
     // sleep to make sure the notification is shown
     std::this_thread::sleep_for( std::chrono::milliseconds( args->notifyTime ) );
   }
@@ -381,6 +385,56 @@ int main( int argc, char * argv[] )
   auto t = std::chrono::duration<float>( std::chrono::steady_clock::now() - start ).count();
   LOGE( "\n\nDone, recorded %.1f seconds\n", t );
   return 0;
+}
+
+vr::VRActionHandle_t getActionHandle( std::string const & actionString )
+{
+  // assemble input path of form /actions/record/in/actionString
+  // these need to match the definitions in the controller json files
+  vr::VRActionHandle_t actionHandle = vr::k_ulInvalidActionHandle;
+  auto                 error        = vrInput->GetActionHandle( ( "/actions/record/in/" + actionString ).c_str(), &actionHandle );
+  if ( error != vr::EVRInputError::VRInputError_None )
+  {
+    LOGE( "\tError getting action on %s: %i / %s\n", actionString.c_str(), error, magic_enum::enum_name( error ).data() );
+  }
+  return actionHandle;
+}
+
+std::pair<std::string, vr::VRActionHandle_t> setupAction( std::vector<std::string> const & actionDescription, std::string const & actionKind )
+{
+  std::string          actionString;
+  vr::VRActionHandle_t actionHandle = vr::k_ulInvalidActionHandle;
+
+  if ( !actionDescription.empty() )
+  {
+    assert( 3 == actionDescription.size() );
+
+    VRData::Hand hand =
+      ( actionDescription[0] == "left" ) ? VRData::Hand::LEFT : ( ( actionDescription[0] == "right" ) ? VRData::Hand::RIGHT : VRData::Hand::NONE );
+    VRData::Action action = { VRData::ActionType::DIG, actionDescription[1], actionDescription[2], hand };
+    actionString          = to_string( action );
+    LOGI( "\nSet up %s action... %s\n", actionKind, actionString.c_str() );
+
+    if ( hand != VRData::Hand::NONE )
+    {
+      actionHandle = getActionHandle( actionString );
+      if ( actionHandle != vr::k_ulInvalidActionHandle )
+      {
+        LOGI( "\tSuccess, use %s to %s\n", actionString.c_str(), actionKind.c_str() );
+      }
+    }
+    else
+    {
+      LOGE( "\tInvalid hand string %s\n", actionDescription[0].c_str() );
+    }
+  }
+  return std::make_pair( actionString, actionHandle );
+}
+
+std::string to_string( VRData::Action const & action )
+{
+  assert( action.hand != VRData::Hand::NONE );
+  return std::string( ( action.hand == VRData::Hand::LEFT ) ? "left" : "right" ) + "_" + action.name + "_" + action.input;
 }
 
 void initVR()
@@ -436,26 +490,24 @@ void initChaperone()
   }
 }
 
-void initOverlay()
+void initOverlay( bool noNotifyHMD )
 {
-  if ( args->noNotifyHMD )
+  if ( !noNotifyHMD )
   {
-    return;
-  }
+    vr::VROverlayError overlayError = vr::VROverlay()->CreateDashboardOverlay( "VCR", "VCR", &overlayHandle, &overlayThumbnailHandle );
+    if ( overlayError != vr::VROverlayError_None )
+    {
+      throw std::runtime_error( std::string( "Failed to create Overlay: " + std::string( vr::VROverlay()->GetOverlayErrorNameFromEnum( overlayError ) ) ) );
+    }
+    vr::VROverlay()->SetOverlayWidthInMeters( overlayHandle, 2.5f );
 
-  vr::VROverlayError overlayError = vr::VROverlay()->CreateDashboardOverlay( "VCR", "VCR", &overlayHandle, &overlayThumbnailHandle );
-  if ( overlayError != vr::VROverlayError_None )
-  {
-    throw std::runtime_error( std::string( "Failed to create Overlay: " + std::string( vr::VROverlay()->GetOverlayErrorNameFromEnum( overlayError ) ) ) );
-  }
-  vr::VROverlay()->SetOverlayWidthInMeters( overlayHandle, 2.5f );
-
-  vr::EVRInitError ierr;
-  vrNotifications = (vr::IVRNotifications *)vr::VR_GetGenericInterface( vr::IVRNotifications_Version, &ierr );
-  if ( ierr != vr::VRInitError_None )
-  {
-    LOGE( "Error while getting IVRNotifications interface: %s", vr::VR_GetVRInitErrorAsEnglishDescription( ierr ) );
-    vrNotifications = nullptr;
+    vr::EVRInitError ierr;
+    vrNotifications = (vr::IVRNotifications *)vr::VR_GetGenericInterface( vr::IVRNotifications_Version, &ierr );
+    if ( ierr != vr::VRInitError_None )
+    {
+      LOGE( "Error while getting IVRNotifications interface: %s", vr::VR_GetVRInitErrorAsEnglishDescription( ierr ) );
+      vrNotifications = nullptr;
+    }
   }
 }
 
@@ -544,16 +596,6 @@ void collectDeviceProperties( const vr::TrackedDeviceIndex_t deviceId, VRData::D
   }
 }
 
-vr::EVRInputError getActionHandle( VRData::Action action, vr::VRActionHandle_t & a )
-{
-  // assemble input path of form /actions/record/in/left_system_click
-  // these need to match the definitions in the controller json files
-  std::string prefix = "/actions/record/in/";
-  std::string h      = ( action.hand == VRData::Hand::LEFT ) ? "left" : "right";
-  std::string path   = prefix + h + "_" + action.name + "_" + action.input;
-  return vrInput->GetActionHandle( path.c_str(), &a );
-}
-
 void setupActions( std::string modelNumber, VRData::Hand hand )
 {
   std::vector<VRData::Action> actions;
@@ -608,8 +650,7 @@ void setupActions( std::string modelNumber, VRData::Hand hand )
     size_t                 index  = hardwareData.m_actions.size() - 1;
     const VRData::Action & action = hardwareData.m_actions[index];
 
-    vr::VRActionHandle_t a;
-    vr::EVRInputError    err = getActionHandle( action, a );
+    vr::VRActionHandle_t a = getActionHandle( to_string( action ) );
 
     ss << " " << action.name + "_" + action.input;
     if ( ++i >= 3 )
@@ -618,13 +659,9 @@ void setupActions( std::string modelNumber, VRData::Hand hand )
       ss << "\n\t           ";
     }
 
-    if ( err == vr::EVRInputError::VRInputError_None )
+    if ( a != vr::k_ulInvalidActionHandle )
     {
       actionCaptureDataVec.push_back( { a, index } );
-    }
-    else
-    {
-      ss << "Error getting handle for action " << action.name << "_" << action.input << ": " << err << " / " << magic_enum::enum_name( err ) << "\n";
     }
   }
   ss << "\n";
@@ -632,55 +669,10 @@ void setupActions( std::string modelNumber, VRData::Hand hand )
   LOGI( "%s", ss.str().c_str() );
 }
 
-std::string setupStartAction()
-{
-  const auto & a = args->startAction;
-  if ( a.empty() )
-  {
-    return {};
-  }
-
-  std::string startActionString = a[0] + "_" + a[1] + "_" + a[2];
-
-  LOGI( "\nSet up start action... %s\n", startActionString.c_str() );
-  VRData::Hand hand;
-  if ( a[0] == "left" )
-  {
-    hand = VRData::Hand::LEFT;
-  }
-  else if ( a[0] == "right" )
-  {
-    hand = VRData::Hand::RIGHT;
-  }
-  else
-  {
-    LOGE( "\tInvalid hand string %s\n", a[0].c_str() );
-    return {};
-  }
-
-  VRData::Action startAction = { VRData::ActionType::DIG, a[1], a[2], hand };
-
-  vr::EVRInputError err = getActionHandle( startAction, startActionHandle );
-  if ( err == vr::EVRInputError::VRInputError_None )
-  {
-    // TODO: make this smarter, maybe the get returns the path?
-    LOGI( "\tSuccess, use %s to start recording\n", startActionString.c_str() );
-  }
-  else
-  {
-    LOGE( "\tError getting handle for start action %s_%s: %i / %s\n",
-          startAction.name.c_str(),
-          startAction.input.c_str(),
-          err,
-          std::string( magic_enum::enum_name( err ) ).c_str() );
-  }
-  return startActionString;
-}
-
-void waitForStartAction()
+void waitForStartAction( bool notify, uint32_t notifyTime )
 {
   LOGI( "Ready - use %s to start recording\n", startActionString.c_str() );
-  notifyHMD( "Ready - use " + startActionString + " to start recording", 3000 );
+  notifyHMD( notify, "Ready - use " + startActionString + " to start recording", notifyTime, 3000 );
   while ( true )
   {
     vrInput->UpdateActionState( &activeActionSet, sizeof( activeActionSet ), 1 );
@@ -697,48 +689,6 @@ void waitForStartAction()
       break;
     }
     std::this_thread::sleep_for( std::chrono::milliseconds( 10 ) );
-  }
-}
-
-void setupSegmentationAction()
-{
-  const auto & a = args->segmentAction;
-  if ( a.empty() )
-  {
-    return;
-  }
-
-  LOGI( "\nSet up segmenting action... %s_%s_%s\n", a[0].c_str(), a[1].c_str(), a[2].c_str() );
-  VRData::Hand hand;
-  if ( a[0] == "left" )
-  {
-    hand = VRData::Hand::LEFT;
-  }
-  else if ( a[0] == "right" )
-  {
-    hand = VRData::Hand::RIGHT;
-  }
-  else
-  {
-    LOGE( "\tInvalid hand string %s\n", a[0].c_str() );
-    return;
-  }
-
-  VRData::Action segmentAction = { VRData::ActionType::DIG, a[1], a[2], hand };
-
-  vr::EVRInputError err = getActionHandle( segmentAction, segmentActionHandle );
-  if ( err == vr::EVRInputError::VRInputError_None )
-  {
-    // TODO: make this smarter, maybe the get returns the path
-    LOGI( "\tSuccess, use %s_%s_%s to segment recording\n", a[0].c_str(), a[1].c_str(), a[2].c_str() );
-  }
-  else
-  {
-    LOGE( "\tError getting handle for segmenting action %s_%s: %i / %s\n",
-          segmentAction.name.c_str(),
-          segmentAction.input.c_str(),
-          err,
-          std::string( magic_enum::enum_name( err ) ).c_str() );
   }
 }
 
@@ -840,38 +790,36 @@ void writeTrackingData()
   binOutArchive( trackingData );
 }
 
-void notifyHMD( std::string message, uint32_t overrideTime )
+void notifyHMD( bool notify, std::string message, uint32_t notifyTime, uint32_t overrideTime )
 {
-  if ( args->noNotifyHMD || !vrNotifications )
+  if ( notify && vrNotifications )
   {
-    return;
-  }
+    vr::VRNotificationId       notificationId;
+    vr::NotificationBitmap_t * messageIconPtr = nullptr;
 
-  vr::VRNotificationId       notificationId;
-  vr::NotificationBitmap_t * messageIconPtr = nullptr;
-
-  vr::EVRNotificationError nerr = vrNotifications->CreateNotification(
-    overlayHandle, 42, vr::EVRNotificationType_Transient, message.c_str(), vr::EVRNotificationStyle_None, messageIconPtr, &notificationId );
-  if ( nerr == vr::VRNotificationError_OK )
-  {
-    // showing notification succeeded, start a thread to kill it later to not block
-    auto killNotification = []( vr::VRNotificationId notificationId, uint32_t time )
+    vr::EVRNotificationError nerr = vrNotifications->CreateNotification(
+      overlayHandle, 42, vr::EVRNotificationType_Transient, message.c_str(), vr::EVRNotificationStyle_None, messageIconPtr, &notificationId );
+    if ( nerr == vr::VRNotificationError_OK )
     {
-      std::this_thread::sleep_for( std::chrono::milliseconds( time ) );
-      vr::EVRNotificationError nerr = vrNotifications->RemoveNotification( notificationId );
-      if ( nerr != vr::VRNotificationError_OK )
+      // showing notification succeeded, start a thread to kill it later to not block
+      auto killNotification = []( vr::VRNotificationId notificationId, uint32_t time )
       {
-        LOGE( "Error removing notification: %i", nerr );
-      }
-    };
+        std::this_thread::sleep_for( std::chrono::milliseconds( time ) );
+        vr::EVRNotificationError nerr = vrNotifications->RemoveNotification( notificationId );
+        if ( nerr != vr::VRNotificationError_OK )
+        {
+          LOGE( "Error removing notification: %i", nerr );
+        }
+      };
 
-    uint32_t    time = overrideTime > 0 ? overrideTime : args->notifyTime;
-    std::thread t( killNotification, notificationId, time );
-    t.detach();
-  }
-  else
-  {
-    LOGE( "Error creating notification: %i", nerr );
+      uint32_t    time = overrideTime > 0 ? overrideTime : notifyTime;
+      std::thread t( killNotification, notificationId, time );
+      t.detach();
+    }
+    else
+    {
+      LOGE( "Error creating notification: %i", nerr );
+    }
   }
 }
 
