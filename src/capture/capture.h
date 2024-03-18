@@ -63,19 +63,11 @@ void printDeviceInfo( const vr::TrackedDeviceIndex_t deviceId );
 
 void collectDeviceProperties( const vr::TrackedDeviceIndex_t deviceId, VRData::Device & device );
 
-vr::EVRInputError getActionHandle( VRData::Action action, vr::VRActionHandle_t & a );
-
 void setupActions( std::string modelNumber, VRData::Hand hand );
 
 void printConfiguration();
 
-// optional action to start recording
-std::string setupStartAction();
-
-// optional action to segment the recording
-void setupSegmentationAction();
-
-void waitForStartAction();
+void waitForStartAction( bool notifyHMD, uint32_t notifyTime );
 
 void writeHardwareData();
 
@@ -83,6 +75,6 @@ void writeTrackingData();
 
 std::vector<VRData::DevicePose> getDevicePoses();
 
-void initOverlay();
+void initOverlay( bool noNotifyHMD );
 
-void notifyHMD( std::string message, uint32_t overrideTime = 0 );
+void notifyHMD( bool notify, std::string message, uint32_t notifyTime, uint32_t overrideTime = 0 );
