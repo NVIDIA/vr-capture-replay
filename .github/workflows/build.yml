@@ -20,11 +20,6 @@ jobs:
       with:
         submodules: recursive
 
-    - name: Setup MSVC
-      uses: TheMrMilchmann/setup-msvc-dev@v2
-      with:
-        arch: x64
-        
     - name: Build
       shell: cmd
       run: ${{github.workspace}}\build.cmd
