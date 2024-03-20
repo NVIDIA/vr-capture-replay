@@ -1,0 +1,30 @@
+
+name: VCR build
+
+on:
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    name: "Build ${{ matrix.build_type }} on ${{ matrix.os }}"
+    runs-on: ${{matrix.os}}
+    
+    strategy:
+      matrix:
+        os: [windows-latest, windows-2019]
+        build_type: [Debug, Release]
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Setup MSVC
+      uses: TheMrMilchmann/setup-msvc-dev@v2
+      with:
+        arch: x64
+        
+    - name: Build
+      shell: cmd
+      run: ${{github.workspace}}\build.cmd

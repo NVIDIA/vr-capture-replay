@@ -13,9 +13,21 @@
 :: See the License for the specific language governing permissions and
 :: limitations under the License.
 
+echo off
+setlocal
 
+set target=%~1
+if "%target%" == "" set target=Release
+
+if not "%target%" == "Debug" if not "%target%" == "Release" goto usage
+
+echo building target %target%
 mkdir _build
 pushd _build
 cmake ..\ -A x64
-cmake --build . --config Release
+cmake --build . --config %target%
 popd
+goto :eof
+
+:usage
+echo build requires one argument: "Debug" or "Release". Default is "Release".
