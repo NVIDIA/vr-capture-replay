@@ -55,25 +55,13 @@
 
 #include "shared/VRData.h"
 
-void initVR();
-
 void initChaperone();
 
-void printDeviceInfo( const vr::TrackedDeviceIndex_t deviceId );
-
-void collectDeviceProperties( const vr::TrackedDeviceIndex_t deviceId, VRData::Device & device );
-
-void setupActions( std::string modelNumber, VRData::Hand hand );
-
 void printConfiguration();
-
-void waitForStartAction( bool notifyHMD, uint32_t notifyTime );
 
 void writeHardwareData();
 
 void writeTrackingData();
-
-std::vector<VRData::DevicePose> getDevicePoses();
 
 void initOverlay( bool noNotifyHMD );
 
