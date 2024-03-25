@@ -32,17 +32,6 @@ struct Args : MainArguments<Args>
   uint32_t notifyTime = option( "note_time", 't', "for how long to show notifications, default: 1000ms" ) = 1000;
 };
 
-VRData::HardwareData hardwareData;
-VRData::TrackingData trackingData;
-
-// index of our devices in tracked device position
-// devices can be mixed with non-tracked stuff like lighthouses
-std::vector<uint32_t> deviceIndices;
-
-// highest index of a device we're capturing
-// needed to ask OpenVR for the right amount of data
-uint32_t maxDeviceIndex;
-
 // interface and handles for notifications
 vr::IVRNotifications * vrNotifications;
 vr::VROverlayHandle_t  overlayHandle          = vr::k_ulOverlayHandleInvalid;
@@ -68,22 +57,26 @@ struct ActionCaptureData
 
 std::vector<ActionCaptureData> actionCaptureDataVec;
 
+void appendActions( vr::IVRInput * vrInput, std::string modelNumber, VRData::Hand hand, std::vector<VRData::Action> & actions );
 void checkError( vr::EVRInputError inputError, std::string const & successMessage = {}, std::source_location const location = std::source_location::current() );
 void collectDeviceProperties( vr::IVRSystem * vrSystem, const vr::TrackedDeviceIndex_t deviceId, VRData::Device & device );
 vr::VRActionHandle_t            getActionHandle( vr::IVRInput * vrInput, std::string const & actionString );
-std::vector<VRData::DevicePose> getDevicePoses( vr::IVRSystem * vrSystem );
+std::vector<VRData::DevicePose> getDevicePoses( vr::IVRSystem * vrSystem, uint32_t maxDeviceIndex, std::vector<uint32_t> const & deviceIndices );
 vr::HmdVector3_t                get_position( vr::HmdMatrix34_t matrix );
 vr::HmdQuaternion_t             get_rotation( vr::HmdMatrix34_t matrix );
 vr::VRActiveActionSet_t         initActiveActionSet( vr::IVRInput * vrInput );
+VRData::Chaperone               initChaperone();
 void                            initLogging();
 vr::IVRSystem *                 initVRSystem();
 std::unique_ptr<Args>           parseCommandLine( int argc, char * argv[] );
+void                            printConfiguration( VRData::HardwareData const & hardwareData );
 void                            printDeviceInfo( vr::IVRSystem * vrSystem, const vr::TrackedDeviceIndex_t deviceId );
 std::pair<std::string, vr::VRActionHandle_t>
             setupAction( vr::IVRInput * vrInput, std::vector<std::string> const & actionDescription, std::string const & actionKind );
-void        setupActions( vr::IVRInput * vrInput, std::string modelNumber, VRData::Hand hand );
 std::string to_string( VRData::Action const & action );
 void        waitForStartAction( vr::IVRInput * vrInput, vr::VRActiveActionSet_t & activeActionSet, bool notifyHMD, uint32_t notifyTime );
+void        writeHardwareData( VRData::HardwareData const & hardwareData );
+void        writeTrackingData( VRData::TrackingData const & trackingData );
 
 int main( int argc, char * argv[] )
 {
@@ -94,9 +87,11 @@ int main( int argc, char * argv[] )
   vr::IVRSystem *         vrSystem        = initVRSystem();
   vr::IVRInput *          vrInput         = vr::VRInput();
   vr::VRActiveActionSet_t activeActionSet = initActiveActionSet( vrInput );
+  VRData::HardwareData    hardwareData;
+  VRData::TrackingData    trackingData;
   try
   {
-    initChaperone();
+    hardwareData.m_chaperone = initChaperone();
     initOverlay( args->noNotifyHMD );
   }
   catch ( std::exception & e )
@@ -170,7 +165,7 @@ int main( int argc, char * argv[] )
       if ( role == vr::TrackedControllerRole_LeftHand )
       {
         c.m_hand = VRData::Hand::LEFT;
-        setupActions( vrInput, c.m_device.m_stringProperties[vr::Prop_ModelNumber_String].m_value, VRData::Hand::LEFT );
+        appendActions( vrInput, c.m_device.m_stringProperties[vr::Prop_ModelNumber_String].m_value, VRData::Hand::LEFT, hardwareData.m_actions );
         leftController = c;
         leftIndex      = i;
         leftValid      = true;
@@ -178,7 +173,7 @@ int main( int argc, char * argv[] )
       else if ( role == vr::TrackedControllerRole_RightHand )
       {
         c.m_hand = VRData::Hand::RIGHT;
-        setupActions( vrInput, c.m_device.m_stringProperties[vr::Prop_ModelNumber_String].m_value, VRData::Hand::RIGHT );
+        appendActions( vrInput, c.m_device.m_stringProperties[vr::Prop_ModelNumber_String].m_value, VRData::Hand::RIGHT, hardwareData.m_actions );
         rightController = c;
         rightIndex      = i;
         rightValid      = true;
@@ -193,8 +188,11 @@ int main( int argc, char * argv[] )
         tmpIndices.push_back( i );
       }
     }
-    maxDeviceIndex = i;
   }
+
+  // index of our devices in tracked device position
+  // devices can be mixed with non-tracked stuff like lighthouses
+  std::vector<uint32_t> deviceIndices;
 
   // assemble indices and devices so that we have HMD, LCTRL, RCTRL, ....
   deviceIndices.push_back( 0 );  // HMD is always 0 and separate in HardwareData
@@ -219,12 +217,14 @@ int main( int argc, char * argv[] )
 
   // insert any other tracked controllers
   deviceIndices.insert( deviceIndices.end(), tmpIndices.begin(), tmpIndices.end() );
+  // highest index of a device we're capturing; needed to ask OpenVR for the right amount of data
+  uint32_t maxDeviceIndex = *std::max_element( deviceIndices.begin(), deviceIndices.end() );
   hardwareData.m_controllers.insert( hardwareData.m_controllers.end(), tmpControllers.begin(), tmpControllers.end() );
 
   std::tie( startActionString, startActionHandle ) = setupAction( vrInput, args->startAction, "start recording" );
   std::tie( std::ignore, segmentActionHandle )     = setupAction( vrInput, args->segmentAction, "segment recording" );
 
-  printConfiguration();
+  printConfiguration( hardwareData );
 
   // wait for the start action, if configured
   if ( startActionHandle != vr::k_ulInvalidActionHandle )
@@ -238,14 +238,14 @@ int main( int argc, char * argv[] )
     // create hardware data file, contains the pose the driver defaults to
     {
       // set up initial poses
-      std::vector<VRData::DevicePose> devicePoses = getDevicePoses( vrSystem );
+      std::vector<VRData::DevicePose> devicePoses = getDevicePoses( vrSystem, maxDeviceIndex, deviceIndices );
       hardwareData.m_hmd.m_device.m_initialPose   = devicePoses[0];
       for ( int i = 0; i < hardwareData.m_controllers.size(); ++i )
       {
         // NOTE: offset +1 between controllers and device poses (HMD is pose 0)
         hardwareData.m_controllers[i].m_device.m_initialPose = devicePoses[i + 1];
       }
-      writeHardwareData();
+      writeHardwareData( hardwareData );
     }
 
     using Duration     = std::chrono::duration<double, std::nano>;
@@ -261,7 +261,7 @@ int main( int argc, char * argv[] )
       {
         // write and quit
         LOGI( "Generating final segment\n" );
-        writeTrackingData();
+        writeTrackingData( trackingData );
         break;
       }
       if ( GetAsyncKeyState( VK_SPACE ) & 0x8000 )
@@ -269,7 +269,7 @@ int main( int argc, char * argv[] )
         // write and re-init, continue recording
         LOGI( "Generating segment\n" );
         notifyHMD( !args->noNotifyHMD, "Generating segment", args->notifyTime );
-        writeTrackingData();
+        writeTrackingData( trackingData );
         start        = std::chrono::steady_clock::now();
         trackingData = VRData::TrackingData{};
 
@@ -285,7 +285,7 @@ int main( int argc, char * argv[] )
       trackingItem.time = t;
 
       // record tracking data for HMD and controllers
-      std::vector<VRData::DevicePose> devicePoses = getDevicePoses( vrSystem );  // returns HMD, CTR0, CTR1, ....
+      std::vector<VRData::DevicePose> devicePoses = getDevicePoses( vrSystem, maxDeviceIndex, deviceIndices );  // returns HMD, CTR0, CTR1, ....
       // first item into HMD
       auto it                = devicePoses.begin();
       trackingItem.m_hmdPose = *it;
@@ -307,7 +307,7 @@ int main( int argc, char * argv[] )
           // write and re-init, continue recording
           LOGI( "Generating segment\n" );
           notifyHMD( !args->noNotifyHMD, "Generating segment", args->notifyTime );
-          writeTrackingData();
+          writeTrackingData( trackingData );
           start        = std::chrono::steady_clock::now();
           trackingData = VRData::TrackingData{};
           while ( data.bState )
@@ -382,6 +382,70 @@ int main( int argc, char * argv[] )
   auto t = std::chrono::duration<float>( std::chrono::steady_clock::now() - start ).count();
   LOGE( "\n\nDone, recorded %.1f seconds\n", t );
   return 0;
+}
+
+void appendActions( vr::IVRInput * vrInput, std::string modelNumber, VRData::Hand hand, std::vector<VRData::Action> & actions )
+{
+  std::vector<VRData::Action> newActions;
+  if ( ( modelNumber.find( "VIVE" ) != std::string::npos ) || ( modelNumber.find( "Vive" ) != std::string::npos ) )
+  {
+    newActions = { { VRData::ActionType::DIG, "system", "click", hand },
+                   { VRData::ActionType::DIG, "trigger", "click", hand },
+                   { VRData::ActionType::DIG, "trigger", "touch", hand },
+                   { VRData::ActionType::VEC1, "trigger", "value", hand },
+                   { VRData::ActionType::DIG, "grip", "click", hand },
+                   { VRData::ActionType::DIG, "trackpad", "click", hand },
+                   { VRData::ActionType::DIG, "trackpad", "touch", hand },
+                   { VRData::ActionType::VEC2, "trackpad", "value", hand },
+                   { VRData::ActionType::DIG, "application_menu", "click", hand } };
+  }
+  else if ( modelNumber.find( "Oculus" ) != std::string::npos )
+  {
+    newActions = { { VRData::ActionType::DIG, "system", "click", hand },   { VRData::ActionType::DIG, "trigger", "click", hand },
+                   { VRData::ActionType::DIG, "trigger", "touch", hand },  { VRData::ActionType::VEC1, "trigger", "value", hand },
+                   { VRData::ActionType::VEC1, "grip", "value", hand },    { VRData::ActionType::DIG, "grip", "touch", hand },
+                   { VRData::ActionType::DIG, "joystick", "click", hand }, { VRData::ActionType::DIG, "joystick", "touch", hand },
+                   { VRData::ActionType::VEC2, "joystick", "value", hand } };
+    if ( hand == VRData::Hand::RIGHT )
+    {
+      newActions.push_back( { VRData::ActionType::DIG, "a", "click", hand } );
+      newActions.push_back( { VRData::ActionType::DIG, "b", "click", hand } );
+    }
+    else if ( hand == VRData::Hand::LEFT )
+    {
+      newActions.push_back( { VRData::ActionType::DIG, "x", "click", hand } );
+      newActions.push_back( { VRData::ActionType::DIG, "y", "click", hand } );
+    }
+  }
+  else if ( modelNumber.find( "Index" ) != std::string::npos )
+  {
+    // IMPLEMENT ME
+    LOGE( "Unsupported controller, sorry, not setting up any actions.\n\n" );
+  }
+  else
+  {
+    LOGE( "Unsupported controller, sorry, not setting up any actions.\n\n" );
+  }
+
+  LOGI( "\t   Actions:" );
+  std::string actionList;
+
+  // enumerate actions, get handles for them
+  for ( const auto & action : newActions )
+  {
+    actionList += "\n\t           " + action.name + "_" + action.input;
+
+    actions.push_back( action );
+
+    vr::VRActionHandle_t actionHandle = getActionHandle( vrInput, to_string( action ) );
+    if ( actionHandle != vr::k_ulInvalidActionHandle )
+    {
+      actionCaptureDataVec.push_back( { actionHandle, actions.size() - 1 } );
+    }
+  }
+  actionList += "\n";
+
+  LOGI( "%s", actionList.c_str() );
 }
 
 void checkError( vr::EVRInputError inputError, std::string const & successMessage, const std::source_location location )
@@ -478,7 +542,7 @@ vr::VRActionHandle_t getActionHandle( vr::IVRInput * vrInput, std::string const 
   return actionHandle;
 }
 
-std::vector<VRData::DevicePose> getDevicePoses( vr::IVRSystem * vrSystem )
+std::vector<VRData::DevicePose> getDevicePoses( vr::IVRSystem * vrSystem, uint32_t maxDeviceIndex, std::vector<uint32_t> const & deviceIndices )
 {
   std::vector<vr::TrackedDevicePose_t> trackedDevicePose( maxDeviceIndex + 1 );
   vrSystem->GetDeviceToAbsoluteTrackingPose( vr::TrackingUniverseRawAndUncalibrated, 0, trackedDevicePose.data(), (uint32_t)trackedDevicePose.size() );
@@ -518,6 +582,23 @@ vr::HmdQuaternion_t get_rotation( vr::HmdMatrix34_t matrix )
   q.z = copysign( q.z, matrix.m[1][0] - matrix.m[0][1] );
   return q;
 };
+
+VRData::Chaperone initChaperone()
+{
+  // collect chaperone / universe information
+  VRData::Chaperone chaperone;
+  chaperone.m_universeOrigin = vr::VRCompositor()->GetTrackingSpace();
+  vr::VRChaperoneSetup()->GetWorkingPlayAreaSize( &chaperone.m_playArea[0], &chaperone.m_playArea[1] );
+  if ( vr::VRCompositor()->GetTrackingSpace() == vr::ETrackingUniverseOrigin::TrackingUniverseSeated )
+  {
+    vr::VRChaperoneSetup()->GetWorkingSeatedZeroPoseToRawTrackingPose( (vr::HmdMatrix34_t *)&chaperone.m_origin );
+  }
+  else
+  {
+    vr::VRChaperoneSetup()->GetWorkingStandingZeroPoseToRawTrackingPose( (vr::HmdMatrix34_t *)&chaperone.m_origin );
+  }
+  return chaperone;
+}
 
 void initLogging()
 {
@@ -576,6 +657,52 @@ std::unique_ptr<Args> parseCommandLine( int argc, char * argv[] )
   }
 }
 
+void printConfiguration( VRData::HardwareData const & hardwareData )
+{
+  std::stringstream ss;
+
+  size_t numControllers = hardwareData.m_controllers.size();
+  size_t numDevices     = numControllers + 1;  // controllers + HMD
+
+  ss << "\nTracking " << numDevices << " devices: \n";
+  auto &                                                                        dev             = hardwareData.m_hmd.m_device;
+  uint32_t                                                                      model           = vr::Prop_ModelNumber_String;
+  uint32_t                                                                      serial          = vr::Prop_SerialNumber_String;
+  std::map<uint32_t, VRData::Device::PropertyData<std::string>>::const_iterator modelPropertyIt = dev.m_stringProperties.find( model );
+  assert( modelPropertyIt != dev.m_stringProperties.end() );
+  std::map<uint32_t, VRData::Device::PropertyData<std::string>>::const_iterator serialPropertyIt = dev.m_stringProperties.find( serial );
+  assert( serialPropertyIt != dev.m_stringProperties.end() );
+  ss << "\tHMD: " << modelPropertyIt->second.m_value << " / " << serialPropertyIt->second.m_value << std::endl;
+  for ( auto & c : hardwareData.m_controllers )
+  {
+    auto & dev      = c.m_device;
+    modelPropertyIt = dev.m_stringProperties.find( model );
+    assert( modelPropertyIt != dev.m_stringProperties.end() );
+    serialPropertyIt = dev.m_stringProperties.find( serial );
+    assert( serialPropertyIt != dev.m_stringProperties.end() );
+    ss << "\tController: " << modelPropertyIt->second.m_value << " / " << serialPropertyIt->second.m_value << "  ";
+    if ( VRData::Hand( c.m_hand ) == VRData::Hand::LEFT )
+    {
+      ss << "LEFT";
+    }
+    else if ( VRData::Hand( c.m_hand ) == VRData::Hand::RIGHT )
+    {
+      ss << "RIGHT";
+    }
+    ss << std::endl;
+  }
+  ss << "\nConfiguration:\n";
+  ss << "\tSample Frequency [Hz]: \t" << hardwareData.m_captureFrequency << "\n";
+  ss << "\n\n";
+
+  LOGI( ss.str().c_str() );
+
+  if ( hardwareData.m_actions.empty() )
+  {
+    LOGW( "\nWarning! Not recording any actions for attached controllers!\n\n" );
+  }
+}
+
 void printDeviceInfo( vr::IVRSystem * vrSystem, const vr::TrackedDeviceIndex_t deviceId )
 {
   auto                      deviceClass = vrSystem->GetTrackedDeviceClass( deviceId );
@@ -614,7 +741,7 @@ std::pair<std::string, vr::VRActionHandle_t>
       ( actionDescription[0] == "left" ) ? VRData::Hand::LEFT : ( ( actionDescription[0] == "right" ) ? VRData::Hand::RIGHT : VRData::Hand::NONE );
     VRData::Action action = { VRData::ActionType::DIG, actionDescription[1], actionDescription[2], hand };
     actionString          = to_string( action );
-    LOGI( "\nSet up %s action... %s\n", actionKind, actionString.c_str() );
+    LOGI( "\nSet up %s action... %s\n", actionKind.c_str(), actionString.c_str() );
 
     if ( hand != VRData::Hand::NONE )
     {
@@ -632,99 +759,10 @@ std::pair<std::string, vr::VRActionHandle_t>
   return std::make_pair( actionString, actionHandle );
 }
 
-void setupActions( vr::IVRInput * vrInput, std::string modelNumber, VRData::Hand hand )
-{
-  std::vector<VRData::Action> actions;
-  if ( ( modelNumber.find( "VIVE" ) != std::string::npos ) || ( modelNumber.find( "Vive" ) != std::string::npos ) )
-  {
-    actions = { { VRData::ActionType::DIG, "system", "click", hand },
-                { VRData::ActionType::DIG, "trigger", "click", hand },
-                { VRData::ActionType::DIG, "trigger", "touch", hand },
-                { VRData::ActionType::VEC1, "trigger", "value", hand },
-                { VRData::ActionType::DIG, "grip", "click", hand },
-                { VRData::ActionType::DIG, "trackpad", "click", hand },
-                { VRData::ActionType::DIG, "trackpad", "touch", hand },
-                { VRData::ActionType::VEC2, "trackpad", "value", hand },
-                { VRData::ActionType::DIG, "application_menu", "click", hand } };
-  }
-  else if ( modelNumber.find( "Oculus" ) != std::string::npos )
-  {
-    actions = { { VRData::ActionType::DIG, "system", "click", hand },   { VRData::ActionType::DIG, "trigger", "click", hand },
-                { VRData::ActionType::DIG, "trigger", "touch", hand },  { VRData::ActionType::VEC1, "trigger", "value", hand },
-                { VRData::ActionType::VEC1, "grip", "value", hand },    { VRData::ActionType::DIG, "grip", "touch", hand },
-                { VRData::ActionType::DIG, "joystick", "click", hand }, { VRData::ActionType::DIG, "joystick", "touch", hand },
-                { VRData::ActionType::VEC2, "joystick", "value", hand } };
-    if ( hand == VRData::Hand::RIGHT )
-    {
-      actions.push_back( { VRData::ActionType::DIG, "a", "click", hand } );
-      actions.push_back( { VRData::ActionType::DIG, "b", "click", hand } );
-    }
-    else if ( hand == VRData::Hand::LEFT )
-    {
-      actions.push_back( { VRData::ActionType::DIG, "x", "click", hand } );
-      actions.push_back( { VRData::ActionType::DIG, "y", "click", hand } );
-    }
-  }
-  else if ( modelNumber.find( "Index" ) != std::string::npos )
-  {
-    // IMPLEMENT ME
-    LOGE( "Unsupported controller, sorry, not setting up any actions.\n\n" );
-  }
-  else
-  {
-    LOGE( "Unsupported controller, sorry, not setting up any actions.\n\n" );
-  }
-
-  LOGI( "\t   Actions:" );
-  std::stringstream ss;
-
-  // enumerate actions, get handles for them
-  size_t i = 0;
-  for ( const auto & a : actions )
-  {
-    hardwareData.m_actions.push_back( a );
-    size_t                 index  = hardwareData.m_actions.size() - 1;
-    const VRData::Action & action = hardwareData.m_actions[index];
-
-    vr::VRActionHandle_t a = getActionHandle( vrInput, to_string( action ) );
-
-    ss << " " << action.name + "_" + action.input;
-    if ( ++i >= 3 )
-    {
-      i = 0;
-      ss << "\n\t           ";
-    }
-
-    if ( a != vr::k_ulInvalidActionHandle )
-    {
-      actionCaptureDataVec.push_back( { a, index } );
-    }
-  }
-  ss << "\n";
-
-  LOGI( "%s", ss.str().c_str() );
-}
-
 std::string to_string( VRData::Action const & action )
 {
   assert( action.hand != VRData::Hand::NONE );
   return std::string( ( action.hand == VRData::Hand::LEFT ) ? "left" : "right" ) + "_" + action.name + "_" + action.input;
-}
-
-void initChaperone()
-{
-  // collect chaperone / universe information
-  auto & chap           = hardwareData.m_chaperone;
-  chap.m_universeOrigin = vr::VRCompositor()->GetTrackingSpace();
-  vr::VRChaperoneSetup()->GetWorkingPlayAreaSize( &chap.m_playArea[0], &chap.m_playArea[1] );
-  if ( vr::VRCompositor()->GetTrackingSpace() == vr::ETrackingUniverseOrigin::TrackingUniverseSeated )
-  {
-    vr::VRChaperoneSetup()->GetWorkingSeatedZeroPoseToRawTrackingPose( (vr::HmdMatrix34_t *)&chap.m_origin );
-  }
-  else
-  {
-    vr::VRChaperoneSetup()->GetWorkingStandingZeroPoseToRawTrackingPose( (vr::HmdMatrix34_t *)&chap.m_origin );
-  }
 }
 
 void initOverlay( bool noNotifyHMD )
@@ -771,45 +809,7 @@ void waitForStartAction( vr::IVRInput * vrInput, vr::VRActiveActionSet_t & activ
   }
 }
 
-void printConfiguration()
-{
-  std::stringstream ss;
-
-  size_t numControllers = hardwareData.m_controllers.size();
-  size_t numDevices     = numControllers + 1;  // controllers + HMD
-
-  ss << "\nTracking " << numDevices << " devices: \n";
-  auto &   dev    = hardwareData.m_hmd.m_device;
-  uint32_t model  = vr::Prop_ModelNumber_String;
-  uint32_t serial = vr::Prop_SerialNumber_String;
-  ss << "\tHMD: " << dev.m_stringProperties[model].m_value << " / " << dev.m_stringProperties[serial].m_value << std::endl;
-  for ( auto & c : hardwareData.m_controllers )
-  {
-    auto & dev = c.m_device;
-    ss << "\tController: " << dev.m_stringProperties[model].m_value << " / " << dev.m_stringProperties[serial].m_value << "  ";
-    if ( VRData::Hand( c.m_hand ) == VRData::Hand::LEFT )
-    {
-      ss << "LEFT";
-    }
-    else if ( VRData::Hand( c.m_hand ) == VRData::Hand::RIGHT )
-    {
-      ss << "RIGHT";
-    }
-    ss << std::endl;
-  }
-  ss << "\nConfiguration:\n";
-  ss << "\tSample Frequency [Hz]: \t" << hardwareData.m_captureFrequency << "\n";
-  ss << "\n\n";
-
-  LOGI( ss.str().c_str() );
-
-  if ( hardwareData.m_actions.empty() )
-  {
-    LOGW( "\nWarning! Not recording any actions for attached controllers!\n\n" );
-  }
-}
-
-void writeHardwareData()
+void writeHardwareData( VRData::HardwareData const & hardwareData )
 {
   std::string hardwarePath = std::filesystem::absolute( "..\\tape\\hardware.json" ).string();
   LOGI( "Writing hardware file: %s\n", hardwarePath.c_str() );
@@ -822,7 +822,7 @@ void writeHardwareData()
   jsonOutArchive( hardwareData );
 }
 
-void writeTrackingData()
+void writeTrackingData( VRData::TrackingData const & trackingData )
 {
   // log currently active VR process
   uint32_t pid = vr::VRCompositor()->GetCurrentSceneFocusProcess();

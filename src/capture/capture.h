@@ -55,14 +55,6 @@
 
 #include "shared/VRData.h"
 
-void initChaperone();
-
-void printConfiguration();
-
-void writeHardwareData();
-
-void writeTrackingData();
-
 void initOverlay( bool noNotifyHMD );
 
 void notifyHMD( bool notify, std::string message, uint32_t notifyTime, uint32_t overrideTime = 0 );
