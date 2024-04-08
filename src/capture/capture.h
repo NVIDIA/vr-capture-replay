@@ -54,7 +54,3 @@
 #pragma warning( pop )
 
 #include "shared/VRData.h"
-
-void initOverlay( bool noNotifyHMD );
-
-void notifyHMD( bool notify, std::string message, uint32_t notifyTime, uint32_t overrideTime = 0 );
