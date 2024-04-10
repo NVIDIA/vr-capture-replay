@@ -27,6 +27,11 @@
 #include <set>
 #include <vector>
 
+#if !defined( _OPENVR_DRIVER_API )
+// both headers, openvr.h and openvr_driver.h define some data types!
+#  include <openvr.h>
+#endif
+
 namespace VRData
 {
   struct DevicePose
@@ -65,15 +70,16 @@ namespace VRData
       };
     };
 
-    std::map<uint32_t, PropertyData<std::string>> m_stringProperties;
-    std::map<uint32_t, PropertyData<bool>>        m_boolProperties;
-    std::map<uint32_t, PropertyData<int32_t>>     m_int32Properties;
-    std::map<uint32_t, PropertyData<uint64_t>>    m_uint64Properties;
-    std::map<uint32_t, PropertyData<float>>       m_floatProperties;
-
-    // missing:
-    // GetMatrix34TrackedDeviceProperty
-    // GetArrayTrackedDeviceProperty
+    std::map<uint32_t, PropertyData<bool>>                           m_boolProperties;
+    std::map<uint32_t, PropertyData<float>>                          m_floatProperties;
+    std::map<uint32_t, PropertyData<std::vector<float>>>             m_floatArrayProperties;
+    std::map<uint32_t, PropertyData<int32_t>>                        m_int32Properties;
+    std::map<uint32_t, PropertyData<std::vector<int32_t>>>           m_int32ArrayProperties;
+    std::map<uint32_t, PropertyData<vr::HmdMatrix34_t>>              m_matrix34Properties;
+    std::map<uint32_t, PropertyData<std::vector<vr::HmdMatrix34_t>>> m_matrix34ArrayProperties;
+    std::map<uint32_t, PropertyData<std::string>>                    m_stringProperties;
+    std::map<uint32_t, PropertyData<uint64_t>>                       m_uint64Properties;
+    std::map<uint32_t, PropertyData<std::vector<vr::HmdVector4_t>>>  m_vector4ArrayProperties;
 
     template <class Archive>
     void serialize( Archive & archive, std::uint32_t const version )
