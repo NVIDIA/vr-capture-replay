@@ -52,8 +52,8 @@ namespace VRData
   {
     static const std::uint32_t version = 1;
 
-    uint32_t   m_deviceClass;
-    DevicePose m_initialPose;
+    vr::ETrackedDeviceClass m_deviceClass;
+    DevicePose              m_initialPose;
 
     template <typename T>
     struct PropertyData
