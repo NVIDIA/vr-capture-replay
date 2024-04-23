@@ -21,33 +21,6 @@
 
 #include <source_location>
 
-class Capture
-{
-public:
-  Capture( bool noNotifyHMD, float sampleFrequency );
-  ~Capture();
-
-  VRData::HardwareData &                        getHardwareData();
-  vr::TrackedDeviceIndex_t                      getMaxTrackedDeviceIndex() const;
-  std::vector<vr::TrackedDeviceIndex_t> const & getTrackedDeviceIndices() const;
-  VRData::TrackingData &                        getTrackingData();
-  vr::VRActiveActionSet_t &                     getVRActiveActionSet();
-  vr::IVRInput *                                getVRInput();
-  vr::VROverlayHandle_t                         getVROverlayHandle() const;
-  vr::IVRSystem *                               getVRSystem();
-  void                                          resetTrackingData();
-
-private:
-  VRData::HardwareData                  m_HardwareData          = {};
-  vr::TrackedDeviceIndex_t              m_maxTrackedDeviceIndex = {};
-  std::vector<vr::TrackedDeviceIndex_t> m_trackedDeviceIndices  = {};
-  VRData::TrackingData                  m_TrackingData          = {};
-  vr::VRActiveActionSet_t               m_VRActiveActionSet     = {};
-  vr::IVRInput *                        m_VRInput               = nullptr;
-  vr::VROverlayHandle_t                 m_VROverlayHandle       = vr::k_ulOverlayHandleInvalid;
-  vr::IVRSystem *                       m_VRSystem              = nullptr;
-};
-
 struct Args : MainArguments<Args>
 {
   float                    sampleFreq = option( "sampling_freq", 's', "sampling frequency in Hz, default: 2xHMD display frequency" ) = -1.0f;
@@ -59,12 +32,55 @@ struct Args : MainArguments<Args>
   uint32_t notifyTime = option( "note_time", 't', "for how long to show notifications, default: 1000ms" ) = 1000;
 };
 
-// interface and handles for notifications
-vr::IVRNotifications * vrNotifications;
+class Capture
+{
+public:
+  Capture( Args const & args );
+  ~Capture();
 
-vr::VRActionHandle_t segmentActionHandle = vr::k_ulInvalidActionHandle;
-vr::VRActionHandle_t startActionHandle   = vr::k_ulInvalidActionHandle;
-std::string          startActionString;
+  std::vector<VRData::DevicePose>               getDevicePoses();
+  VRData::HardwareData &                        getHardwareData();
+  vr::TrackedDeviceIndex_t                      getMaxTrackedDeviceIndex() const;
+  vr::VRActionHandle_t                          getSegmentActionHandle() const;
+  vr::VRActionHandle_t                          getStartActionHandle() const;
+  std::string const &                           getStartActionString() const;
+  std::vector<vr::TrackedDeviceIndex_t> const & getTrackedDeviceIndices() const;
+  VRData::TrackingData &                        getTrackingData();
+  vr::VRActiveActionSet_t &                     getVRActiveActionSet();
+  vr::IVRInput *                                getVRInput();
+  vr::IVRNotifications *                        getVRNotifications();
+  vr::VROverlayHandle_t                         getVROverlayHandle() const;
+  vr::IVRSystem *                               getVRSystem();
+  void                                          notifyHMD( bool notify, std::string message, uint32_t notifyTime, uint32_t overrideTime = 0 );
+  void                                          resetTrackingData();
+  void                                          setupInitialPose();
+  void                                          waitForStartAction( bool notifyHMD, uint32_t notifyTime );
+
+private:
+  void                                         gatherTrackedDevices( float sampleFrequency );
+  void                                         initActiveSectionSet();
+  void                                         initChaperone();
+  void                                         initOverlays( bool notifyHMD );
+  void                                         initVRSystem();
+  void                                         printConfiguration() const;
+  void                                         printConfiguration( std::stringstream & ss, VRData::Device const & device ) const;
+  std::pair<std::string, vr::VRActionHandle_t> setupAction( std::vector<std::string> const & actionDescription, std::string const & actionKind );
+  void                                         writeHardwareData();
+
+private:
+  VRData::HardwareData                  m_hardwareData          = {};
+  vr::TrackedDeviceIndex_t              m_maxTrackedDeviceIndex = {};
+  vr::VRActionHandle_t                  m_segmentActionHandle   = vr::k_ulInvalidActionHandle;
+  vr::VRActionHandle_t                  m_startActionHandle     = vr::k_ulInvalidActionHandle;
+  std::string                           m_startActionString     = {};
+  std::vector<vr::TrackedDeviceIndex_t> m_trackedDeviceIndices  = {};
+  VRData::TrackingData                  m_trackingData          = {};
+  vr::VRActiveActionSet_t               m_vrActiveActionSet     = {};
+  vr::IVRInput *                        m_vrInput               = nullptr;
+  vr::IVRNotifications *                m_vrNotifications       = nullptr;
+  vr::VROverlayHandle_t                 m_vrOverlayHandle       = vr::k_ulOverlayHandleInvalid;
+  vr::IVRSystem *                       m_vrSystem              = nullptr;
+};
 
 struct ActionTemplate
 {
@@ -95,22 +111,15 @@ void checkFailure( vr::EVRInitError initError, std::string const & failureMessag
 void checkFailure( vr::EVROverlayError        overlayError,
                    std::string const &        failureMessage,
                    std::source_location const location = std::source_location::current() );
-VRData::Device                  collectDeviceProperties( vr::IVRSystem * vrSystem, const vr::TrackedDeviceIndex_t deviceId );
-vr::VRActionHandle_t            getActionHandle( vr::IVRInput * vrInput, std::string const & actionString );
-std::vector<VRData::DevicePose> getDevicePoses( vr::IVRSystem * vrSystem, uint32_t maxDeviceIndex, std::vector<uint32_t> const & deviceIndices );
-vr::HmdVector3_t                get_position( vr::HmdMatrix34_t matrix );
-vr::HmdQuaternion_t             get_rotation( vr::HmdMatrix34_t matrix );
-void                            initLogging();
-void                            notifyHMD( Capture const & capture, bool notify, std::string message, uint32_t notifyTime, uint32_t overrideTime = 0 );
-std::unique_ptr<Args>           parseCommandLine( int argc, char * argv[] );
-void                            printConfiguration( VRData::HardwareData const & hardwareData );
-void                            printDeviceInfo( vr::IVRSystem * vrSystem, vr::TrackedDeviceIndex_t deviceIndex, vr::ETrackedDeviceClass deviceClass );
-std::pair<std::string, vr::VRActionHandle_t>
-            setupAction( vr::IVRInput * vrInput, std::vector<std::string> const & actionDescription, std::string const & actionKind );
-std::string to_string( VRData::Action const & action );
-void        waitForStartAction( Capture & capture, bool notifyHMD, uint32_t notifyTime );
-void        writeHardwareData( VRData::HardwareData const & hardwareData );
-void        writeTrackingData( VRData::TrackingData const & trackingData );
+VRData::Device        collectDeviceProperties( vr::IVRSystem * vrSystem, const vr::TrackedDeviceIndex_t deviceId );
+vr::VRActionHandle_t  getActionHandle( vr::IVRInput * vrInput, std::string const & actionString );
+vr::HmdVector3_t      get_position( vr::HmdMatrix34_t matrix );
+vr::HmdQuaternion_t   get_rotation( vr::HmdMatrix34_t matrix );
+void                  initLogging();
+std::unique_ptr<Args> parseCommandLine( int argc, char * argv[] );
+void                  printDeviceInfo( vr::IVRSystem * vrSystem, vr::TrackedDeviceIndex_t deviceIndex, vr::ETrackedDeviceClass deviceClass );
+std::string           to_string( VRData::Action const & action );
+void                  writeTrackingData( VRData::TrackingData const & trackingData );
 
 int main( int argc, char * argv[] )
 {
@@ -120,40 +129,20 @@ int main( int argc, char * argv[] )
     initLogging();
     logCommandLine( argc, argv );
 
-    Capture capture( args->noNotifyHMD, args->sampleFreq );
-
-    std::tie( startActionString, startActionHandle ) = setupAction( capture.getVRInput(), args->startAction, "start recording" );
-    std::tie( std::ignore, segmentActionHandle )     = setupAction( capture.getVRInput(), args->segmentAction, "segment recording" );
-
-    printConfiguration( capture.getHardwareData() );
+    Capture capture( *args );
 
     // wait for the start action, if configured
-    if ( startActionHandle != vr::k_ulInvalidActionHandle )
-    {
-      waitForStartAction( capture, !args->noNotifyHMD, args->notifyTime );
-    }
+    capture.waitForStartAction( !args->noNotifyHMD, args->notifyTime );
 
     auto start = std::chrono::steady_clock::now();
-    // create hardware data file, contains the pose the driver defaults to
-    {
-      // set up initial poses
-      std::vector<VRData::DevicePose> devicePoses =
-        getDevicePoses( capture.getVRSystem(), capture.getMaxTrackedDeviceIndex(), capture.getTrackedDeviceIndices() );
-      capture.getHardwareData().m_hmd.m_device.m_initialPose = devicePoses[0];
-      for ( int i = 0; i < capture.getHardwareData().m_controllers.size(); ++i )
-      {
-        // NOTE: offset +1 between controllers and device poses (HMD is pose 0)
-        capture.getHardwareData().m_controllers[i].m_device.m_initialPose = devicePoses[i + 1];
-      }
-      writeHardwareData( capture.getHardwareData() );
-    }
+    capture.setupInitialPose();
 
     using Duration     = std::chrono::duration<double, std::nano>;
     Duration sleeptime = std::chrono::seconds( 1 ) / ( capture.getHardwareData().m_captureFrequency );
 
     LOGI( "\n\nRecording events, press ESC to stop, SPACE to write segment...\n\n" );
 
-    notifyHMD( capture, !args->noNotifyHMD, "Starting VCR capture", args->notifyTime );
+    capture.notifyHMD( !args->noNotifyHMD, "Starting VCR capture", args->notifyTime );
 
     while ( true )
     {
@@ -168,7 +157,7 @@ int main( int argc, char * argv[] )
       {
         // write and re-init, continue recording
         LOGI( "Generating segment\n" );
-        notifyHMD( capture, !args->noNotifyHMD, "Generating segment", args->notifyTime );
+        capture.notifyHMD( !args->noNotifyHMD, "Generating segment", args->notifyTime );
         writeTrackingData( capture.getTrackingData() );
         start = std::chrono::steady_clock::now();
         capture.resetTrackingData();
@@ -185,8 +174,7 @@ int main( int argc, char * argv[] )
       trackingItem.time = t;
 
       // record tracking data for HMD and controllers
-      std::vector<VRData::DevicePose> devicePoses =
-        getDevicePoses( capture.getVRSystem(), capture.getMaxTrackedDeviceIndex(), capture.getTrackedDeviceIndices() );  // returns HMD, CTR0, CTR1, ....
+      std::vector<VRData::DevicePose> devicePoses = capture.getDevicePoses();  // returns HMD, CTR0, CTR1, ....
       // first item into HMD
       auto it                = devicePoses.begin();
       trackingItem.m_hmdPose = *it;
@@ -198,23 +186,23 @@ int main( int argc, char * argv[] )
       capture.getVRInput()->UpdateActionState( &capture.getVRActiveActionSet(), sizeof( vr::VRActiveActionSet_t ), 1 );
 
       // create segment if configured button was pressed
-      if ( segmentActionHandle != vr::k_ulInvalidActionHandle )
+      if ( capture.getSegmentActionHandle() != vr::k_ulInvalidActionHandle )
       {
         // TODO: allow more than DIG input?
         vr::InputDigitalActionData_t data{ 0 };
-        capture.getVRInput()->GetDigitalActionData( segmentActionHandle, &data, sizeof( data ), vr::k_ulInvalidInputValueHandle );
+        capture.getVRInput()->GetDigitalActionData( capture.getSegmentActionHandle(), &data, sizeof( data ), vr::k_ulInvalidInputValueHandle );
         if ( data.bState )
         {
           // write and re-init, continue recording
           LOGI( "Generating segment\n" );
-          notifyHMD( capture, !args->noNotifyHMD, "Generating segment", args->notifyTime );
+          capture.notifyHMD( !args->noNotifyHMD, "Generating segment", args->notifyTime );
           writeTrackingData( capture.getTrackingData() );
           start = std::chrono::steady_clock::now();
           capture.resetTrackingData();
           while ( data.bState )
           {
             capture.getVRInput()->UpdateActionState( &capture.getVRActiveActionSet(), sizeof( vr::VRActiveActionSet_t ), 1 );
-            capture.getVRInput()->GetDigitalActionData( segmentActionHandle, &data, sizeof( data ), vr::k_ulInvalidInputValueHandle );
+            capture.getVRInput()->GetDigitalActionData( capture.getSegmentActionHandle(), &data, sizeof( data ), vr::k_ulInvalidInputValueHandle );
           }
           // discard this tracking item - this button will not be logged
           continue;
@@ -268,7 +256,7 @@ int main( int argc, char * argv[] )
     }
     if ( !args->noNotifyHMD )
     {
-      notifyHMD( capture, !args->noNotifyHMD, "Shutting down VCR capture", args->notifyTime );
+      capture.notifyHMD( !args->noNotifyHMD, "Shutting down VCR capture", args->notifyTime );
       // sleep to make sure the notification is shown
       std::this_thread::sleep_for( std::chrono::milliseconds( args->notifyTime ) );
     }
@@ -580,25 +568,6 @@ vr::VRActionHandle_t getActionHandle( vr::IVRInput * vrInput, std::string const 
   return actionHandle;
 }
 
-std::vector<VRData::DevicePose> getDevicePoses( vr::IVRSystem * vrSystem, uint32_t maxDeviceIndex, std::vector<uint32_t> const & deviceIndices )
-{
-  std::vector<vr::TrackedDevicePose_t> trackedDevicePose( maxDeviceIndex + 1 );
-  vrSystem->GetDeviceToAbsoluteTrackingPose( vr::TrackingUniverseRawAndUncalibrated, 0, trackedDevicePose.data(), (uint32_t)trackedDevicePose.size() );
-
-  std::vector<VRData::DevicePose> devicePoses;
-  for ( uint32_t i = 0; i < deviceIndices.size(); ++i )
-  {
-    uint32_t     deviceIndex = deviceIndices[i];
-    const auto & pose        = trackedDevicePose[deviceIndex];
-
-    auto               pos = get_position( pose.mDeviceToAbsoluteTracking );
-    auto               rot = get_rotation( pose.mDeviceToAbsoluteTracking );
-    VRData::DevicePose devicePose{ { pos.v[0], pos.v[1], pos.v[2] }, { rot.w, rot.x, rot.y, rot.z } };
-    devicePoses.push_back( devicePose );
-  }
-  return devicePoses;
-}
-
 vr::HmdVector3_t get_position( vr::HmdMatrix34_t matrix )
 {
   vr::HmdVector3_t vector;
@@ -631,39 +600,6 @@ void initLogging()
   initLog( logPath );
 }
 
-void notifyHMD( Capture const & capture, bool notify, std::string message, uint32_t notifyTime, uint32_t overrideTime )
-{
-  if ( notify && vrNotifications )
-  {
-    vr::VRNotificationId       notificationId;
-    vr::NotificationBitmap_t * messageIconPtr = nullptr;
-
-    vr::EVRNotificationError nerr = vrNotifications->CreateNotification(
-      capture.getVROverlayHandle(), 42, vr::EVRNotificationType_Transient, message.c_str(), vr::EVRNotificationStyle_None, messageIconPtr, &notificationId );
-    if ( nerr == vr::VRNotificationError_OK )
-    {
-      // showing notification succeeded, start a thread to kill it later to not block
-      auto killNotification = []( vr::VRNotificationId notificationId, uint32_t time )
-      {
-        std::this_thread::sleep_for( std::chrono::milliseconds( time ) );
-        vr::EVRNotificationError nerr = vrNotifications->RemoveNotification( notificationId );
-        if ( nerr != vr::VRNotificationError_OK )
-        {
-          LOGE( "Error removing notification: %i", nerr );
-        }
-      };
-
-      uint32_t    time = overrideTime > 0 ? overrideTime : notifyTime;
-      std::thread t( killNotification, notificationId, time );
-      t.detach();
-    }
-    else
-    {
-      LOGE( "Error creating notification: %i", nerr );
-    }
-  }
-}
-
 std::unique_ptr<Args> parseCommandLine( int argc, char * argv[] )
 {
   try
@@ -674,52 +610,6 @@ std::unique_ptr<Args> parseCommandLine( int argc, char * argv[] )
   {
     std::cerr << "Error parsing command line: " << e.what() << '\n';
     exit( 1 );
-  }
-}
-
-void printConfiguration( VRData::HardwareData const & hardwareData )
-{
-  std::stringstream ss;
-
-  size_t numControllers = hardwareData.m_controllers.size();
-  size_t numDevices     = numControllers + 1;  // controllers + HMD
-
-  ss << "\nTracking " << numDevices << " devices: \n";
-  auto &                                                                        dev             = hardwareData.m_hmd.m_device;
-  uint32_t                                                                      model           = vr::Prop_ModelNumber_String;
-  uint32_t                                                                      serial          = vr::Prop_SerialNumber_String;
-  std::map<uint32_t, VRData::Device::PropertyData<std::string>>::const_iterator modelPropertyIt = dev.m_stringProperties.find( model );
-  assert( modelPropertyIt != dev.m_stringProperties.end() );
-  std::map<uint32_t, VRData::Device::PropertyData<std::string>>::const_iterator serialPropertyIt = dev.m_stringProperties.find( serial );
-  assert( serialPropertyIt != dev.m_stringProperties.end() );
-  ss << "\tHMD: " << modelPropertyIt->second.m_value << " / " << serialPropertyIt->second.m_value << std::endl;
-  for ( auto & c : hardwareData.m_controllers )
-  {
-    auto & dev      = c.m_device;
-    modelPropertyIt = dev.m_stringProperties.find( model );
-    assert( modelPropertyIt != dev.m_stringProperties.end() );
-    serialPropertyIt = dev.m_stringProperties.find( serial );
-    assert( serialPropertyIt != dev.m_stringProperties.end() );
-    ss << "\tController: " << modelPropertyIt->second.m_value << " / " << serialPropertyIt->second.m_value << "  ";
-    if ( VRData::Hand( c.m_hand ) == VRData::Hand::LEFT )
-    {
-      ss << "LEFT";
-    }
-    else if ( VRData::Hand( c.m_hand ) == VRData::Hand::RIGHT )
-    {
-      ss << "RIGHT";
-    }
-    ss << std::endl;
-  }
-  ss << "\nConfiguration:\n";
-  ss << "\tSample Frequency [Hz]: \t" << hardwareData.m_captureFrequency << "\n";
-  ss << "\n\n";
-
-  LOGI( ss.str().c_str() );
-
-  if ( hardwareData.m_actions.empty() )
-  {
-    LOGW( "\nWarning! Not recording any actions for attached controllers!\n\n" );
   }
 }
 
@@ -747,78 +637,10 @@ void printDeviceInfo( vr::IVRSystem * vrSystem, vr::TrackedDeviceIndex_t deviceI
   LOGI( "%s", ss.str().c_str() );
 }
 
-std::pair<std::string, vr::VRActionHandle_t>
-  setupAction( vr::IVRInput * vrInput, std::vector<std::string> const & actionDescription, std::string const & actionKind )
-{
-  std::string          actionString;
-  vr::VRActionHandle_t actionHandle = vr::k_ulInvalidActionHandle;
-
-  if ( !actionDescription.empty() )
-  {
-    assert( 3 == actionDescription.size() );
-
-    VRData::Hand hand =
-      ( actionDescription[0] == "left" ) ? VRData::Hand::LEFT : ( ( actionDescription[0] == "right" ) ? VRData::Hand::RIGHT : VRData::Hand::NONE );
-    VRData::Action action = { VRData::ActionType::DIG, actionDescription[1], actionDescription[2], hand };
-    actionString          = to_string( action );
-    LOGI( "\nSet up %s action... %s\n", actionKind.c_str(), actionString.c_str() );
-
-    if ( hand != VRData::Hand::NONE )
-    {
-      actionHandle = getActionHandle( vrInput, actionString );
-      if ( actionHandle != vr::k_ulInvalidActionHandle )
-      {
-        LOGI( "\tSuccess, use %s to %s\n", actionString.c_str(), actionKind.c_str() );
-      }
-    }
-    else
-    {
-      LOGE( "\tInvalid hand string %s\n", actionDescription[0].c_str() );
-    }
-  }
-  return std::make_pair( actionString, actionHandle );
-}
-
 std::string to_string( VRData::Action const & action )
 {
   assert( action.hand != VRData::Hand::NONE );
   return std::string( ( action.hand == VRData::Hand::LEFT ) ? "left" : "right" ) + "_" + action.name + "_" + action.input;
-}
-
-void waitForStartAction( Capture & capture, bool notify, uint32_t notifyTime )
-{
-  LOGI( "Ready - use %s to start recording\n", startActionString.c_str() );
-  notifyHMD( capture, notify, "Ready - use " + startActionString + " to start recording", notifyTime, 3000 );
-  while ( true )
-  {
-    capture.getVRInput()->UpdateActionState( &capture.getVRActiveActionSet(), sizeof( capture.getVRActiveActionSet() ), 1 );
-    vr::InputDigitalActionData_t data{ 0 };
-    capture.getVRInput()->GetDigitalActionData( startActionHandle, &data, sizeof( data ), vr::k_ulInvalidInputValueHandle );
-    if ( data.bState )
-    {
-      // wait for action to end
-      while ( data.bState )
-      {
-        capture.getVRInput()->UpdateActionState( &capture.getVRActiveActionSet(), sizeof( capture.getVRActiveActionSet() ), 1 );
-        capture.getVRInput()->GetDigitalActionData( segmentActionHandle, &data, sizeof( data ), vr::k_ulInvalidInputValueHandle );
-      }
-      break;
-    }
-    std::this_thread::sleep_for( std::chrono::milliseconds( 10 ) );
-  }
-}
-
-void writeHardwareData( VRData::HardwareData const & hardwareData )
-{
-  std::string hardwarePath = std::filesystem::absolute( "..\\tape\\hardware.json" ).string();
-  LOGI( "Writing hardware file: %s\n", hardwarePath.c_str() );
-  std::ofstream ofile( "..\\tape\\hardware.json", std::ios::binary );
-  if ( !ofile )
-  {
-    throw std::runtime_error( std::format( "Failed to open for writing: {}", hardwarePath ) );
-  }
-  cereal::JSONOutputArchive jsonOutArchive( ofile );
-  jsonOutArchive( hardwareData );
 }
 
 void writeTrackingData( VRData::TrackingData const & trackingData )
@@ -859,6 +681,7 @@ void writeTrackingData( VRData::TrackingData const & trackingData )
 
   // ...and write tracking file
   LOGI( "Writing tracking file: %s\n", trackingPath.c_str() );
+  LOGI( "\ttracked %d poses in %.1f seconds", trackingData.m_trackingItems.size(), trackingData.m_trackingItems.back().time );
   std::ofstream ofile( trackingPath, std::ios::binary );
   if ( !ofile )
   {
@@ -868,68 +691,190 @@ void writeTrackingData( VRData::TrackingData const & trackingData )
   binOutArchive( trackingData );
 }
 
-Capture::Capture( bool noNotifyHMD, float sampleFrequency )
+Capture::Capture( Args const & args )
 {
-  // init the VRSystem
-  vr::EVRInitError initError;
-  m_VRSystem = vr::VR_Init( &initError, vr::VRApplication_Background );
-  checkFailure( initError, "Failed to init VRSystem" );
-  m_VRInput = vr::VRInput();
+  initVRSystem();
+  initActiveSectionSet();
+  initChaperone();
+  initOverlays( !args.noNotifyHMD );
+  gatherTrackedDevices( args.sampleFreq );
 
-  // init active action set
-  TCHAR path[MAX_PATH * 2];
-  if ( GetModuleFileName( NULL, path, MAX_PATH ) )
+  std::tie( m_startActionString, m_startActionHandle ) = setupAction( args.startAction, "start recording" );
+  std::tie( std::ignore, m_segmentActionHandle )       = setupAction( args.segmentAction, "segment recording" );
+
+  printConfiguration();
+}
+
+Capture::~Capture()
+{
+  LOGI( "Shutting down...\n" );
+  vr::VR_Shutdown();
+}
+
+std::vector<VRData::DevicePose> Capture::getDevicePoses()
+{
+  std::vector<vr::TrackedDevicePose_t> trackedDevicePose( m_maxTrackedDeviceIndex + 1 );
+  m_vrSystem->GetDeviceToAbsoluteTrackingPose( vr::TrackingUniverseRawAndUncalibrated, 0, trackedDevicePose.data(), (uint32_t)trackedDevicePose.size() );
+
+  std::vector<VRData::DevicePose> devicePoses;
+  for ( uint32_t i = 0; i < m_trackedDeviceIndices.size(); ++i )
   {
-    strcpy_s( strrchr( path, '\\' ), MAX_PATH, "\\record_controller_actions.json" );
+    const auto & pose = trackedDevicePose[m_trackedDeviceIndices[i]];
+    auto         pos  = get_position( pose.mDeviceToAbsoluteTracking );
+    auto         rot  = get_rotation( pose.mDeviceToAbsoluteTracking );
+    devicePoses.push_back( { { pos.v[0], pos.v[1], pos.v[2] }, { rot.w, rot.x, rot.y, rot.z } } );
   }
-  else
+  return devicePoses;
+}
+
+VRData::HardwareData & Capture::getHardwareData()
+{
+  return m_hardwareData;
+}
+
+vr::TrackedDeviceIndex_t Capture::getMaxTrackedDeviceIndex() const
+{
+  return m_maxTrackedDeviceIndex;
+}
+
+vr::VRActionHandle_t Capture::getSegmentActionHandle() const
+{
+  return m_segmentActionHandle;
+}
+
+vr::VRActionHandle_t Capture::getStartActionHandle() const
+{
+  return m_startActionHandle;
+}
+
+std::string const & Capture::getStartActionString() const
+{
+  return m_startActionString;
+}
+
+std::vector<vr::TrackedDeviceIndex_t> const & Capture::getTrackedDeviceIndices() const
+{
+  return m_trackedDeviceIndices;
+}
+
+VRData::TrackingData & Capture::getTrackingData()
+{
+  return m_trackingData;
+}
+
+vr::VRActiveActionSet_t & Capture::getVRActiveActionSet()
+{
+  return m_vrActiveActionSet;
+}
+
+vr::IVRInput * Capture::getVRInput()
+{
+  return m_vrInput;
+}
+
+vr::IVRNotifications * Capture::getVRNotifications()
+{
+  return m_vrNotifications;
+}
+
+vr::VROverlayHandle_t Capture::getVROverlayHandle() const
+{
+  return m_vrOverlayHandle;
+}
+
+vr::IVRSystem * Capture::getVRSystem()
+{
+  return m_vrSystem;
+}
+
+void Capture::notifyHMD( bool notify, std::string message, uint32_t notifyTime, uint32_t overrideTime )
+{
+  if ( notify && m_vrNotifications )
   {
-    LOGE( "GetModuleFileName failed\n" );
+    vr::VRNotificationId       notificationId;
+    vr::NotificationBitmap_t * messageIconPtr = nullptr;
+
+    vr::EVRNotificationError nerr = m_vrNotifications->CreateNotification(
+      m_vrOverlayHandle, 42, vr::EVRNotificationType_Transient, message.c_str(), vr::EVRNotificationStyle_None, messageIconPtr, &notificationId );
+    if ( nerr == vr::VRNotificationError_OK )
+    {
+      // showing notification succeeded, start a thread to kill it later to not block
+      auto killNotification = []( vr::IVRNotifications * notifications, vr::VRNotificationId notificationId, uint32_t time )
+      {
+        std::this_thread::sleep_for( std::chrono::milliseconds( time ) );
+        vr::EVRNotificationError nerr = notifications->RemoveNotification( notificationId );
+        if ( nerr != vr::VRNotificationError_OK )
+        {
+          LOGE( "Error removing notification: %i", nerr );
+        }
+      };
+
+      uint32_t    time = overrideTime > 0 ? overrideTime : notifyTime;
+      std::thread t( killNotification, m_vrNotifications, notificationId, time );
+      t.detach();
+    }
+    else
+    {
+      LOGE( "Error creating notification: %i", nerr );
+    }
   }
+}
 
-  LOGI( "\nSetting action manifest file: %s\n", path );
-  checkFailure( m_VRInput->SetActionManifestPath( path ), "Failed", "Success" );
+void Capture::resetTrackingData()
+{
+  m_trackingData = {};
+}
 
-  LOGI( "\nGetting action set: %s\n", path );
-  checkFailure( m_VRInput->GetActionSetHandle( "/actions/record", &m_VRActiveActionSet.ulActionSet ), "Failed", "Success" );
+void Capture::setupInitialPose()
+{
+  std::vector<VRData::DevicePose> devicePoses = getDevicePoses();
+  assert( devicePoses.size() == 1 + m_hardwareData.m_controllers.size() );
 
-  // init chaperone
-  vr::IVRCompositor *     vrCompositor        = vr::VRCompositor();
-  vr::IVRChaperoneSetup * vrChaperoneSetup    = vr::VRChaperoneSetup();
-  m_HardwareData.m_chaperone.m_universeOrigin = vrCompositor->GetTrackingSpace();
-  checkFailure( vrChaperoneSetup->GetWorkingPlayAreaSize( &m_HardwareData.m_chaperone.m_playArea[0], &m_HardwareData.m_chaperone.m_playArea[1] ) );
-  if ( vrCompositor->GetTrackingSpace() == vr::ETrackingUniverseOrigin::TrackingUniverseSeated )
+  auto devicePoseIt                           = devicePoses.begin();
+  m_hardwareData.m_hmd.m_device.m_initialPose = *devicePoseIt++;
+  for ( auto & controller : m_hardwareData.m_controllers )
   {
-    checkFailure( vrChaperoneSetup->GetWorkingSeatedZeroPoseToRawTrackingPose( (vr::HmdMatrix34_t *)&m_HardwareData.m_chaperone.m_origin ) );
+    controller.m_device.m_initialPose = *devicePoseIt++;
   }
-  else
+  writeHardwareData();
+}
+
+void Capture::waitForStartAction( bool notify, uint32_t notifyTime )
+{
+  if ( m_startActionHandle != vr::k_ulInvalidActionHandle )
   {
-    checkFailure( vrChaperoneSetup->GetWorkingStandingZeroPoseToRawTrackingPose( (vr::HmdMatrix34_t *)&m_HardwareData.m_chaperone.m_origin ) );
+    LOGI( "Ready - use %s to start recording\n", m_startActionString.c_str() );
+    notifyHMD( notify, "Ready - use " + m_startActionString + " to start recording", notifyTime, 3000 );
+    while ( true )
+    {
+      m_vrInput->UpdateActionState( &m_vrActiveActionSet, sizeof( m_vrActiveActionSet ), 1 );
+      vr::InputDigitalActionData_t data{ 0 };
+      m_vrInput->GetDigitalActionData( m_startActionHandle, &data, sizeof( data ), vr::k_ulInvalidInputValueHandle );
+      if ( data.bState )
+      {
+        // wait for action to end
+        while ( data.bState )
+        {
+          m_vrInput->UpdateActionState( &m_vrActiveActionSet, sizeof( m_vrActiveActionSet ), 1 );
+          m_vrInput->GetDigitalActionData( m_segmentActionHandle, &data, sizeof( data ), vr::k_ulInvalidInputValueHandle );
+        }
+        break;
+      }
+      std::this_thread::sleep_for( std::chrono::milliseconds( 10 ) );
+    }
   }
+}
 
-  // init overlays
-  if ( !noNotifyHMD )
-  {
-    vr::IVROverlay *      overlay = vr::VROverlay();
-    vr::VROverlayHandle_t thumbnailHandle;
-    vr::EVROverlayError   overlayError = overlay->CreateDashboardOverlay( "VCR", "VCR", &m_VROverlayHandle, &thumbnailHandle );
-    checkFailure( overlayError, "Failed to create Overlay" );
-    checkFailure( overlay->SetOverlayWidthInMeters( m_VROverlayHandle, 2.5f ), "Failed to set Overlay width in meters" );
-
-    vr::EVRInitError initError;
-    vrNotifications = (vr::IVRNotifications *)vr::VR_GetGenericInterface( vr::IVRNotifications_Version, &initError );
-    checkFailure( initError, "Failed to get Notifications interface" );
-  }
-
-  // get the tracked devices
+void Capture::gatherTrackedDevices( float sampleFrequency )
+{
   LOGI( "\nEnumerating OpenVR devices...\n" );
   for ( uint32_t i = 0; i < vr::k_unMaxTrackedDeviceCount; ++i )
   {
     vr::TrackedDeviceIndex_t deviceIndex = static_cast<vr::TrackedDeviceIndex_t>( i );
-    auto                     deviceClass = m_VRSystem->GetTrackedDeviceClass( deviceIndex );
+    auto                     deviceClass = m_vrSystem->GetTrackedDeviceClass( deviceIndex );
     if ( deviceClass != vr::TrackedDeviceClass_Invalid )
     {
-      printDeviceInfo( m_VRSystem, deviceIndex, deviceClass );
+      printDeviceInfo( m_vrSystem, deviceIndex, deviceClass );
 
       switch ( deviceClass )
       {
@@ -937,31 +882,31 @@ Capture::Capture( bool noNotifyHMD, float sampleFrequency )
           checkFailure( deviceIndex == 0, "Encountered HMD Device at deviceIndex " + std::to_string( deviceIndex ) );
 
           m_trackedDeviceIndices.push_back( deviceIndex );
-          m_VRSystem->GetRecommendedRenderTargetSize( &m_HardwareData.m_hmd.m_renderWidth, &m_HardwareData.m_hmd.m_renderHeight );
+          m_vrSystem->GetRecommendedRenderTargetSize( &m_hardwareData.m_hmd.m_renderWidth, &m_hardwareData.m_hmd.m_renderHeight );
           {
-            auto & p = m_HardwareData.m_hmd.m_proj;
+            auto & p = m_hardwareData.m_hmd.m_proj;
             for ( int i = 0; i < 2; ++i )
             {
-              m_VRSystem->GetProjectionRaw( (vr::EVREye)i, &p[i][0], &p[i][1], &p[i][2], &p[i][3] );
+              m_vrSystem->GetProjectionRaw( (vr::EVREye)i, &p[i][0], &p[i][1], &p[i][2], &p[i][3] );
             }
           }
-          m_HardwareData.m_hmd.m_device = collectDeviceProperties( m_VRSystem, deviceIndex );
-          m_HardwareData.m_captureFrequency =
-            ( 0 < sampleFrequency ) ? sampleFrequency : 2.0f * m_HardwareData.m_hmd.m_device.m_floatProperties[vr::Prop_DisplayFrequency_Float].m_value;
+          m_hardwareData.m_hmd.m_device = collectDeviceProperties( m_vrSystem, deviceIndex );
+          m_hardwareData.m_captureFrequency =
+            ( 0 < sampleFrequency ) ? sampleFrequency : 2.0f * m_hardwareData.m_hmd.m_device.m_floatProperties[vr::Prop_DisplayFrequency_Float].m_value;
           break;
 
         case vr::TrackedDeviceClass_Controller:
           checkFailure( deviceIndex != 0, "Encountered Controller Device at deviceIndex 0, expecting an HMD there" );
 
           m_trackedDeviceIndices.push_back( deviceIndex );
-          m_HardwareData.m_controllers.push_back( VRData::Controller() );
-          VRData::Controller & c          = m_HardwareData.m_controllers.back();
-          c.m_device                      = collectDeviceProperties( m_VRSystem, deviceIndex );
-          vr::ETrackedControllerRole role = m_VRSystem->GetControllerRoleForTrackedDeviceIndex( deviceIndex );
+          m_hardwareData.m_controllers.push_back( VRData::Controller() );
+          VRData::Controller & c          = m_hardwareData.m_controllers.back();
+          c.m_device                      = collectDeviceProperties( m_vrSystem, deviceIndex );
+          vr::ETrackedControllerRole role = m_vrSystem->GetControllerRoleForTrackedDeviceIndex( deviceIndex );
           if ( ( role == vr::TrackedControllerRole_LeftHand ) || ( role == vr::TrackedControllerRole_RightHand ) )
           {
             c.m_hand = ( role == vr::TrackedControllerRole_LeftHand ) ? VRData::Hand::LEFT : VRData::Hand::RIGHT;
-            appendActions( m_VRInput, c.m_device.m_stringProperties[vr::Prop_ModelNumber_String].m_value, c.m_hand, m_HardwareData.m_actions );
+            appendActions( m_vrInput, c.m_device.m_stringProperties[vr::Prop_ModelNumber_String].m_value, c.m_hand, m_hardwareData.m_actions );
           }
           else if ( role == vr::TrackedControllerRole_Invalid )
           {
@@ -974,72 +919,172 @@ Capture::Capture( bool noNotifyHMD, float sampleFrequency )
   checkFailure( !m_trackedDeviceIndices.empty(), "No tracked devices found" );
   checkFailure( std::ranges::count_if( m_trackedDeviceIndices,
                                        [this]( auto const & device )
-                                       { return m_VRSystem->GetControllerRoleForTrackedDeviceIndex( device ) == vr::TrackedControllerRole_LeftHand; } ) <= 1,
+                                       { return m_vrSystem->GetControllerRoleForTrackedDeviceIndex( device ) == vr::TrackedControllerRole_LeftHand; } ) <= 1,
                 "More than one Left Hand controller tracked" );
   checkFailure( std::ranges::count_if( m_trackedDeviceIndices,
                                        [this]( auto const & device )
-                                       { return m_VRSystem->GetControllerRoleForTrackedDeviceIndex( device ) == vr::TrackedControllerRole_RightHand; } ) <= 1,
+                                       { return m_vrSystem->GetControllerRoleForTrackedDeviceIndex( device ) == vr::TrackedControllerRole_RightHand; } ) <= 1,
                 "More than one Right Hand controller tracked" );
-  if ( std::ranges::find_if( m_HardwareData.m_controllers, []( auto const & controller ) { return controller.m_hand == VRData::Hand::LEFT; } ) ==
-       m_HardwareData.m_controllers.end() )
+  if ( std::ranges::find_if( m_hardwareData.m_controllers, []( auto const & controller ) { return controller.m_hand == VRData::Hand::LEFT; } ) ==
+       m_hardwareData.m_controllers.end() )
   {
     LOGW( "\nWarning! No left hande controller found. This might cause broken capture data.\n\n" );
   }
-  if ( std::ranges::find_if( m_HardwareData.m_controllers, []( auto const & controller ) { return controller.m_hand == VRData::Hand::RIGHT; } ) ==
-       m_HardwareData.m_controllers.end() )
+  if ( std::ranges::find_if( m_hardwareData.m_controllers, []( auto const & controller ) { return controller.m_hand == VRData::Hand::RIGHT; } ) ==
+       m_hardwareData.m_controllers.end() )
   {
     LOGW( "\nWarning! No right hand controller found. This might cause broken capture data.\n\n" );
   }
   m_maxTrackedDeviceIndex = *std::ranges::max_element( m_trackedDeviceIndices );
 }
 
-Capture::~Capture()
+void Capture::initActiveSectionSet()
 {
-  LOGI( "Shutting down...\n" );
-  vr::VR_Shutdown();
+  TCHAR path[MAX_PATH * 2];
+  if ( GetModuleFileName( NULL, path, MAX_PATH ) )
+  {
+    strcpy_s( strrchr( path, '\\' ), MAX_PATH, "\\record_controller_actions.json" );
+  }
+  else
+  {
+    LOGE( "GetModuleFileName failed\n" );
+  }
+
+  LOGI( "\nSetting action manifest file: %s\n", path );
+  checkFailure( m_vrInput->SetActionManifestPath( path ), "Failed", "Success" );
+
+  LOGI( "\nGetting action set: %s\n", path );
+  checkFailure( m_vrInput->GetActionSetHandle( "/actions/record", &m_vrActiveActionSet.ulActionSet ), "Failed", "Success" );
 }
 
-VRData::HardwareData & Capture::getHardwareData()
+void Capture::initChaperone()
 {
-  return m_HardwareData;
+  vr::IVRCompositor *     vrCompositor        = vr::VRCompositor();
+  vr::IVRChaperoneSetup * vrChaperoneSetup    = vr::VRChaperoneSetup();
+  m_hardwareData.m_chaperone.m_universeOrigin = vrCompositor->GetTrackingSpace();
+  checkFailure( vrChaperoneSetup->GetWorkingPlayAreaSize( &m_hardwareData.m_chaperone.m_playArea[0], &m_hardwareData.m_chaperone.m_playArea[1] ) );
+  if ( vrCompositor->GetTrackingSpace() == vr::ETrackingUniverseOrigin::TrackingUniverseSeated )
+  {
+    checkFailure( vrChaperoneSetup->GetWorkingSeatedZeroPoseToRawTrackingPose( (vr::HmdMatrix34_t *)&m_hardwareData.m_chaperone.m_origin ) );
+  }
+  else
+  {
+    checkFailure( vrChaperoneSetup->GetWorkingStandingZeroPoseToRawTrackingPose( (vr::HmdMatrix34_t *)&m_hardwareData.m_chaperone.m_origin ) );
+  }
 }
 
-vr::TrackedDeviceIndex_t Capture::getMaxTrackedDeviceIndex() const
+void Capture::initOverlays( bool notifyHMD )
 {
-  return m_maxTrackedDeviceIndex;
+  if ( notifyHMD )
+  {
+    vr::IVROverlay *      overlay = vr::VROverlay();
+    vr::VROverlayHandle_t thumbnailHandle;
+    vr::EVROverlayError   overlayError = overlay->CreateDashboardOverlay( "VCR", "VCR", &m_vrOverlayHandle, &thumbnailHandle );
+    checkFailure( overlayError, "Failed to create Overlay" );
+    checkFailure( overlay->SetOverlayWidthInMeters( m_vrOverlayHandle, 2.5f ), "Failed to set Overlay width in meters" );
+
+    vr::EVRInitError initError;
+    m_vrNotifications = (vr::IVRNotifications *)vr::VR_GetGenericInterface( vr::IVRNotifications_Version, &initError );
+    checkFailure( initError, "Failed to get Notifications interface" );
+  }
 }
 
-std::vector<vr::TrackedDeviceIndex_t> const & Capture::getTrackedDeviceIndices() const
+void Capture::initVRSystem()
 {
-  return m_trackedDeviceIndices;
+  vr::EVRInitError initError;
+  m_vrSystem = vr::VR_Init( &initError, vr::VRApplication_Background );
+  checkFailure( initError, "Failed to init VRSystem" );
+  m_vrInput = vr::VRInput();
 }
 
-VRData::TrackingData & Capture::getTrackingData()
+void Capture::printConfiguration() const
 {
-  return m_TrackingData;
+  std::stringstream ss;
+
+  size_t numControllers = m_hardwareData.m_controllers.size();
+  size_t numDevices     = numControllers + 1;  // controllers + HMD
+
+  ss << "\nTracking " << numDevices << " devices: \n";
+  printConfiguration( ss, m_hardwareData.m_hmd.m_device );
+  for ( auto & c : m_hardwareData.m_controllers )
+  {
+    printConfiguration( ss, c.m_device );
+    if ( VRData::Hand( c.m_hand ) == VRData::Hand::LEFT )
+    {
+      ss << "LEFT";
+    }
+    else if ( VRData::Hand( c.m_hand ) == VRData::Hand::RIGHT )
+    {
+      ss << "RIGHT";
+    }
+    ss << std::endl;
+  }
+  ss << "\nConfiguration:\n";
+  ss << "\tSample Frequency [Hz]: \t" << m_hardwareData.m_captureFrequency << "\n";
+  ss << "\n\n";
+
+  LOGI( ss.str().c_str() );
+
+  if ( m_hardwareData.m_actions.empty() )
+  {
+    LOGW( "\nWarning! Not recording any actions for attached controllers!\n\n" );
+  }
 }
 
-vr::VRActiveActionSet_t & Capture::getVRActiveActionSet()
+void Capture::printConfiguration( std::stringstream & ss, VRData::Device const & device ) const
 {
-  return m_VRActiveActionSet;
+  std::map<uint32_t, VRData::Device::PropertyData<std::string>>::const_iterator modelPropertyIt = device.m_stringProperties.find( vr::Prop_ModelNumber_String );
+  assert( modelPropertyIt != device.m_stringProperties.end() );
+  std::map<uint32_t, VRData::Device::PropertyData<std::string>>::const_iterator serialPropertyIt =
+    device.m_stringProperties.find( vr::Prop_SerialNumber_String );
+  assert( serialPropertyIt != device.m_stringProperties.end() );
+
+  assert( ( device.m_deviceClass == vr::ETrackedDeviceClass::TrackedDeviceClass_HMD ) ||
+          ( device.m_deviceClass == vr::ETrackedDeviceClass::TrackedDeviceClass_Controller ) );
+  ss << "\t" << ( ( device.m_deviceClass == vr::ETrackedDeviceClass::TrackedDeviceClass_HMD ) ? "HMD" : "Controller" ) << ": "
+     << modelPropertyIt->second.m_value << " / " << serialPropertyIt->second.m_value << std::endl;
 }
 
-vr::IVRInput * Capture::getVRInput()
+std::pair<std::string, vr::VRActionHandle_t> Capture::setupAction( std::vector<std::string> const & actionDescription, std::string const & actionKind )
 {
-  return m_VRInput;
+  std::string          actionString;
+  vr::VRActionHandle_t actionHandle = vr::k_ulInvalidActionHandle;
+
+  if ( !actionDescription.empty() )
+  {
+    assert( 3 == actionDescription.size() );
+
+    VRData::Hand hand =
+      ( actionDescription[0] == "left" ) ? VRData::Hand::LEFT : ( ( actionDescription[0] == "right" ) ? VRData::Hand::RIGHT : VRData::Hand::NONE );
+    VRData::Action action = { VRData::ActionType::DIG, actionDescription[1], actionDescription[2], hand };
+    actionString          = to_string( action );
+    LOGI( "\nSet up %s action... %s\n", actionKind.c_str(), actionString.c_str() );
+
+    if ( hand != VRData::Hand::NONE )
+    {
+      actionHandle = getActionHandle( m_vrInput, actionString );
+      if ( actionHandle != vr::k_ulInvalidActionHandle )
+      {
+        LOGI( "\tSuccess, use %s to %s\n", actionString.c_str(), actionKind.c_str() );
+      }
+    }
+    else
+    {
+      LOGE( "\tInvalid hand string %s\n", actionDescription[0].c_str() );
+    }
+  }
+  return std::make_pair( actionString, actionHandle );
 }
 
-vr::VROverlayHandle_t Capture::getVROverlayHandle() const
+void Capture::writeHardwareData()
 {
-  return m_VROverlayHandle;
-}
-
-vr::IVRSystem * Capture::getVRSystem()
-{
-  return m_VRSystem;
-}
-
-void Capture::resetTrackingData()
-{
-  m_TrackingData = {};
+  std::string hardwarePath = std::filesystem::absolute( "..\\tape\\hardware.json" ).string();
+  LOGI( "Writing hardware file: %s\n", hardwarePath.c_str() );
+  std::ofstream ofile( "..\\tape\\hardware.json", std::ios::binary );
+  if ( !ofile )
+  {
+    throw std::runtime_error( std::format( "Failed to open for writing: {}", hardwarePath ) );
+  }
+  cereal::JSONOutputArchive jsonOutArchive( ofile );
+  jsonOutArchive( m_hardwareData );
 }
