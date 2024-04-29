@@ -114,7 +114,7 @@ void checkFailure( vr::EVROverlayError        overlayError,
 VRData::Device        collectDeviceProperties( vr::IVRSystem * vrSystem, const vr::TrackedDeviceIndex_t deviceId );
 vr::VRActionHandle_t  getActionHandle( vr::IVRInput * vrInput, std::string const & actionString );
 vr::HmdVector3_t      get_position( vr::HmdMatrix34_t matrix );
-vr::HmdQuaternion_t   get_rotation( vr::HmdMatrix34_t matrix );
+vr::HmdQuaternionf_t  get_rotation( vr::HmdMatrix34_t matrix );
 void                  initLogging();
 std::unique_ptr<Args> parseCommandLine( int argc, char * argv[] );
 void                  printDeviceInfo( vr::IVRSystem * vrSystem, vr::TrackedDeviceIndex_t deviceIndex, vr::ETrackedDeviceClass deviceClass );
@@ -171,7 +171,7 @@ int main( int argc, char * argv[] )
       auto t = std::chrono::duration<float>( std::chrono::steady_clock::now() - start ).count();
 
       VRData::TrackingItem trackingItem;
-      trackingItem.time = t;
+      trackingItem.m_time = t;
 
       // record tracking data for HMD and controllers
       std::vector<VRData::DevicePose> devicePoses = capture.getDevicePoses();  // returns HMD, CTR0, CTR1, ....
@@ -577,13 +577,13 @@ vr::HmdVector3_t get_position( vr::HmdMatrix34_t matrix )
   return vector;
 };
 
-vr::HmdQuaternion_t get_rotation( vr::HmdMatrix34_t matrix )
+vr::HmdQuaternionf_t get_rotation( vr::HmdMatrix34_t matrix )
 {
-  vr::HmdQuaternion_t q;
-  q.w = sqrt( fmax( 0, 1 + matrix.m[0][0] + matrix.m[1][1] + matrix.m[2][2] ) ) / 2;
-  q.x = sqrt( fmax( 0, 1 + matrix.m[0][0] - matrix.m[1][1] - matrix.m[2][2] ) ) / 2;
-  q.y = sqrt( fmax( 0, 1 - matrix.m[0][0] + matrix.m[1][1] - matrix.m[2][2] ) ) / 2;
-  q.z = sqrt( fmax( 0, 1 - matrix.m[0][0] - matrix.m[1][1] + matrix.m[2][2] ) ) / 2;
+  vr::HmdQuaternionf_t q;
+  q.w = sqrt( std::max( 0.0f, 1 + matrix.m[0][0] + matrix.m[1][1] + matrix.m[2][2] ) ) / 2;
+  q.x = sqrt( std::max( 0.0f, 1 + matrix.m[0][0] - matrix.m[1][1] - matrix.m[2][2] ) ) / 2;
+  q.y = sqrt( std::max( 0.0f, 1 - matrix.m[0][0] + matrix.m[1][1] - matrix.m[2][2] ) ) / 2;
+  q.z = sqrt( std::max( 0.0f, 1 - matrix.m[0][0] - matrix.m[1][1] + matrix.m[2][2] ) ) / 2;
   q.x = copysign( q.x, matrix.m[2][1] - matrix.m[1][2] );
   q.y = copysign( q.y, matrix.m[0][2] - matrix.m[2][0] );
   q.z = copysign( q.z, matrix.m[1][0] - matrix.m[0][1] );
@@ -681,7 +681,7 @@ void writeTrackingData( VRData::TrackingData const & trackingData )
 
   // ...and write tracking file
   LOGI( "Writing tracking file: %s\n", trackingPath.c_str() );
-  LOGI( "\ttracked %d poses in %.1f seconds", trackingData.m_trackingItems.size(), trackingData.m_trackingItems.back().time );
+  LOGI( "\ttracked %d poses in %.1f seconds", trackingData.m_trackingItems.size(), trackingData.m_trackingItems.back().m_time );
   std::ofstream ofile( trackingPath, std::ios::binary );
   if ( !ofile )
   {
