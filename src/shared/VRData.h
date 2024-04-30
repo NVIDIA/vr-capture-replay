@@ -17,6 +17,7 @@
 
 #pragma once
 
+#include <assert.h>
 #include <cereal/archives/binary.hpp>
 #include <cereal/archives/json.hpp>
 #include <cereal/types/map.hpp>
@@ -36,13 +37,36 @@ namespace VRData
 {
   struct DevicePose
   {
-    static const std::uint32_t version = 1;
+    static const std::uint32_t version = 2;
 
-    double m_pos[3];
-    double m_rot[4];
+    float m_pos[3];
+    float m_rot[4];
 
     template <class T>
-    void serialize( T & archive, std::uint32_t const version )
+    void load( T & archive, std::uint32_t const archiveVersion )
+    {
+      assert( archiveVersion <= version );
+      switch ( archiveVersion )
+      {
+        case 1:
+          {
+            double pos[3], rot[4];
+            archive( pos, rot );
+            for ( int i = 0; i < 3; ++i )
+            {
+              m_pos[i] = static_cast<float>( pos[i] );
+              m_rot[i] = static_cast<float>( rot[i] );
+            }
+            m_rot[3] = static_cast<float>( rot[3] );
+          }
+          break;
+        case 2: archive( m_pos, m_rot ); break;
+        default: assert( false );
+      }
+    }
+
+    template <class T>
+    void save( T & archive, std::uint32_t ) const
     {
       archive( m_pos, m_rot );
     }
@@ -202,18 +226,37 @@ namespace VRData
 
   struct TrackingItem
   {
-    static const std::uint32_t version = 1;
+    static const std::uint32_t version = 2;
 
     // m_controllerPoses index corresponds with HardwareData::m_controllers
-    double                  time;
+    float                   m_time;
     DevicePose              m_hmdPose;
     std::vector<DevicePose> m_controllerPoses;
     std::vector<ActionData> m_actionDataVec;
 
-    template <class Archive>
-    void serialize( Archive & archive, std::uint32_t const version )
+    template <class T>
+    void load( T & archive, std::uint32_t const archiveVersion )
     {
-      archive( time, m_hmdPose, m_controllerPoses, m_actionDataVec );
+      assert( archiveVersion <= version );
+      switch ( archiveVersion )
+      {
+        case 1:
+          {
+            double time;
+            archive( time );
+            m_time = static_cast<float>( time );
+          }
+          break;
+        case 2: archive( m_time ); break;
+        default: assert( false );
+      }
+      archive( m_hmdPose, m_controllerPoses, m_actionDataVec );
+    }
+
+    template <class T>
+    void save( T & archive, std::uint32_t ) const
+    {
+      archive( m_time, m_hmdPose, m_controllerPoses, m_actionDataVec );
     }
   };
 

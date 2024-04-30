@@ -97,7 +97,7 @@ void filterTrackingData()
 {
   auto average = []( const auto & in, auto & out, const size_t index, const size_t size )
   {
-    double num = 2 * (double)size + 1;
+    float num = 2.0f * size + 1;
 
     VRData::TrackingItem & ti_out = out[index];
 

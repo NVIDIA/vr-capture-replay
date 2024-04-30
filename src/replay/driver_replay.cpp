@@ -124,7 +124,7 @@ private:
   };
 
 private:
-  VRData::TrackingItem Interpolate( VRData::TrackingItem ti0, VRData::TrackingItem ti1, double seconds );  // function to interpolate between two tracking items
+  VRData::TrackingItem Interpolate( VRData::TrackingItem ti0, VRData::TrackingItem ti1, float seconds );  // function to interpolate between two tracking items
   void                 UpdateDevices();  // separate thread to read session file and call HMD and controller updates
   std::thread          m_updateDevices;
   bool                 m_runUpdateDevices{ true };
@@ -347,9 +347,9 @@ void OpenVR_ServerDriver::RunFrame()
   }
 }
 
-VRData::TrackingItem OpenVR_ServerDriver::Interpolate( VRData::TrackingItem ti0, VRData::TrackingItem ti1, double alpha )
+VRData::TrackingItem OpenVR_ServerDriver::Interpolate( VRData::TrackingItem ti0, VRData::TrackingItem ti1, float alpha )
 {
-  auto lerp_pos = []( double p[3], double p0[3], double p1[3], double alpha )
+  auto lerp_pos = []( float p[3], float p0[3], float p1[3], float alpha )
   {
     p[0] = ( 1 - alpha ) * p0[0] + alpha * p1[0];
     p[1] = ( 1 - alpha ) * p0[1] + alpha * p1[1];
@@ -362,11 +362,11 @@ VRData::TrackingItem OpenVR_ServerDriver::Interpolate( VRData::TrackingItem ti0,
     v[1] = (float)( ( 1 - alpha ) * v0[1] + alpha * v1[1] );
   };
 
-  auto quat_dot = []( double q0[4], double q1[4] ) { return q0[0] * q1[0] + q0[1] * q1[1] + q0[2] * q1[2] + q0[3] * q1[3]; };
+  auto quat_dot = []( float q0[4], float q1[4] ) { return q0[0] * q1[0] + q0[1] * q1[1] + q0[2] * q1[2] + q0[3] * q1[3]; };
 
-  auto quat_normalize = []( double q[4] )
+  auto quat_normalize = []( float q[4] )
   {
-    double d = std::sqrt( q[0] * q[0] + q[1] * q[1] + q[2] * q[2] + q[3] * q[3] );
+    float d = std::sqrt( q[0] * q[0] + q[1] * q[1] + q[2] * q[2] + q[3] * q[3] );
     if ( d != 0.0 )
     {
       q[0] /= d;
@@ -376,17 +376,16 @@ VRData::TrackingItem OpenVR_ServerDriver::Interpolate( VRData::TrackingItem ti0,
     }
   };
 
-  auto slerp_quat = [quat_dot, quat_normalize]( double q[4], double q0[4], double q1[4], double alpha )
+  auto slerp_quat = [quat_dot, quat_normalize]( float q[4], float q0[4], float q1[4], float alpha )
   {
-    double dp = quat_dot( q0, q1 );
-    double sq0;
-    double sq1;
+    float dp = quat_dot( q0, q1 );
+    float sq0, sq1;
 
     if ( dp < 1.0 )
     {
-      double theta = acos( dp );
-      sq0          = sin( ( 1.0 - alpha ) * theta ) / sin( theta );
-      sq1          = sin( alpha * theta ) / sin( theta );
+      float theta = acos( dp );
+      sq0         = sin( ( 1.0f - alpha ) * theta ) / sin( theta );
+      sq1         = sin( alpha * theta ) / sin( theta );
     }
     else
     {
@@ -611,7 +610,7 @@ void OpenVR_ServerDriver::UpdateDevices()
     {
       // update using tracking data
 
-      double seconds = m_config.replaySpeed * ( std::chrono::duration<double>( std::chrono::steady_clock::now() - m_startTime ).count() );
+      float seconds = m_config.replaySpeed * ( std::chrono::duration<float>( std::chrono::steady_clock::now() - m_startTime ).count() );
 
       VRData::TrackingItem & ti0 = m_trackingData.m_trackingItems[0];
       VRData::TrackingItem & ti1 = m_trackingData.m_trackingItems[1];
@@ -619,8 +618,8 @@ void OpenVR_ServerDriver::UpdateDevices()
       VRData::TrackingItem ti;
       if ( m_config.interpolate )
       {
-        double alpha = ( seconds - ti0.time ) / ( ti1.time - ti0.time );
-        ti           = Interpolate( ti0, ti1, alpha );
+        float alpha = ( seconds - ti0.m_time ) / ( ti1.m_time - ti0.m_time );
+        ti          = Interpolate( ti0, ti1, alpha );
       }
       else
       {
@@ -708,7 +707,7 @@ void OpenVR_ServerDriver::UpdateDevices()
       }
 
       // if we're replaying slower than we captured, we may need to take out several items
-      while ( !m_trackingData.m_trackingItems.empty() && seconds > m_trackingData.m_trackingItems[1].time )
+      while ( !m_trackingData.m_trackingItems.empty() && seconds > m_trackingData.m_trackingItems[1].m_time )
       {
         // TODO: make sure that inputs are not dropped here?
 
