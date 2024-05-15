@@ -1,0 +1,17 @@
+name: documentation
+
+on:
+  workflow_dispatch:
+
+jobs:
+  convert_via_pandoc:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v3
+      - uses: docker://pandoc/latex:2.9
+        with:
+          args: --output=output/readme.pdf "readme.md"
+      - uses: actions/upload-artifact@v3
+        with:
+          name: readme
+          path: readme
