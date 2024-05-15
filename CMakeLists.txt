@@ -8,7 +8,6 @@
  * license agreement from NVIDIA CORPORATION is strictly prohibited.
 ]]
 
-
 cmake_minimum_required(VERSION 3.5)
 
 project(VCR)
@@ -54,8 +53,6 @@ add_subdirectory(src/helper)
 add_subdirectory(src/replay)
 add_subdirectory(src/sample)
 
-
-
 add_custom_target(VCR ALL
   COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/src/aux_files ${OUT_DIR}
 
@@ -67,5 +64,17 @@ add_custom_target(VCR ALL
 
   SOURCES ${CMAKE_SOURCE_DIR}/src/aux_files/version.txt
 )
+
+function(addLicense TITLE IN_FILE OUT_FILE)
+	file(READ ${IN_FILE} CONTENTS)
+	file(APPEND ${OUT_FILE} "License for: ${TITLE}\n\n")
+	file(APPEND ${OUT_FILE} "${CONTENTS}\n\n\n")
+endfunction()
+
+addLicense("cereal" ${CMAKE_SOURCE_DIR}/src/thirdparty/cereal/LICENSE ${OUT_DIR}/licenses.txt)
+addLicense("magic_enum" ${CMAKE_SOURCE_DIR}/src/thirdparty/magic_enum/LICENSE ${OUT_DIR}/licenses.txt)
+addLicense("openvr" ${CMAKE_SOURCE_DIR}/src/thirdparty/openvr/LICENSE ${OUT_DIR}/licenses.txt)
+addLicense("quick_arg_parser" ${CMAKE_SOURCE_DIR}/src/thirdparty/quick_arg_parser/LICENSE ${OUT_DIR}/licenses.txt)
+addLicense("vr-capture-replay" ${CMAKE_SOURCE_DIR}/LICENSE ${OUT_DIR}/licenses.txt)
 
 set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT capture)
