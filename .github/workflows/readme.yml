@@ -9,15 +9,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: test something
-        run: |
-          ls
-          mkdir _out
-          pandoc -o readme1.pdf README.md
-          ls
-          pandoc -o _out/readme1.pdf README.md      
-          ls 
-          ls _out
       - name: Pandoc conversion
         uses: docker://pandoc/latex:2.9
         with:
