@@ -37,14 +37,18 @@ jobs:
       with:
         submodules: recursive
 
-    - name: Build
-      shell: cmd
-      run: ${{github.workspace}}\build.cmd
-
     - name: Download Readme
       uses: actions/download-artifact@v4
       with:
         name: readme
+        
+    - name: debug
+      shell: cmd
+      run: dir
+      
+    - name: Build
+      shell: cmd
+      run: ${{github.workspace}}\build.cmd
     
     - if: ${{ matrix.build_type == 'Release' }}
       name: Upload Artifacts
