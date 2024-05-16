@@ -7,6 +7,21 @@ on:
   workflow_dispatch:
 
 jobs:
+  create_readme_pdf:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Pandoc conversion
+        uses: docker://pandoc/latex:2.9
+        with:
+          args: -f markdown -t pdf -o readme.pdf README.md
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: readme
+          path: ./readme.pdf
+
   build:
     name: "Build ${{ matrix.build_type }} on ${{ matrix.os }}"
     runs-on: ${{matrix.os}}
@@ -25,6 +40,12 @@ jobs:
     - name: Build
       shell: cmd
       run: ${{github.workspace}}\build.cmd
+
+    - name: Download Readme
+      uses: actions/download-artifact@4
+      with:
+        name: readme
+        path: _out
     
     - if: ${{ matrix.build_type == 'Release' }}
       name: Upload Artifacts
