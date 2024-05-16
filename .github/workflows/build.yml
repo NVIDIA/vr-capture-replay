@@ -23,6 +23,7 @@ jobs:
           path: ./readme.pdf
 
   build:
+    needs: create_readme_pdf
     name: "Build ${{ matrix.build_type }} on ${{ matrix.os }}"
     runs-on: ${{matrix.os}}
     
