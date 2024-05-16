@@ -13,5 +13,5 @@ jobs:
           args: -f markdown -t pdf -o readme.pdf README.md
       - uses: actions/upload-artifact@v4
         with:
-          name: readme
-          path: readme
+          name: readme.pdf
+          path: .
