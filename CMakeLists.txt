@@ -79,7 +79,7 @@ addLicense("quick_arg_parser" ${CMAKE_SOURCE_DIR}/src/thirdparty/quick_arg_parse
 addLicense("vr-capture-replay" ${CMAKE_SOURCE_DIR}/LICENSE ${OUT_DIR}/licenses.txt)
 
 # copy readme.pdf from root into output directory, if it exists (to create a self-contained github artifact)
-if( EXISTS "${CMAKE_SOURCE_DIR)/readme.pdf" )
+if( EXISTS "${CMAKE_SOURCE_DIR}/readme.pdf" )
 	file( COPY "${CMAKE_SOURCE_DIR}/readme.pdf" "${OUT_DIR}/readme.pdf")
 endif()
 
