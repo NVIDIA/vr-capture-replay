@@ -45,7 +45,6 @@ jobs:
       uses: actions/download-artifact@v4
       with:
         name: readme
-        path: _out
     
     - if: ${{ matrix.build_type == 'Release' }}
       name: Upload Artifacts
