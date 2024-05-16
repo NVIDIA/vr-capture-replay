@@ -65,6 +65,7 @@ add_custom_target(VCR ALL
   SOURCES ${CMAKE_SOURCE_DIR}/src/aux_files/version.txt
 )
 
+# collect licenses from third party projects into license.txt
 function(addLicense TITLE IN_FILE OUT_FILE)
 	file(READ ${IN_FILE} CONTENTS)
 	file(APPEND ${OUT_FILE} "License for: ${TITLE}\n\n")
@@ -77,4 +78,10 @@ addLicense("openvr" ${CMAKE_SOURCE_DIR}/src/thirdparty/openvr/LICENSE ${OUT_DIR}
 addLicense("quick_arg_parser" ${CMAKE_SOURCE_DIR}/src/thirdparty/quick_arg_parser/LICENSE ${OUT_DIR}/licenses.txt)
 addLicense("vr-capture-replay" ${CMAKE_SOURCE_DIR}/LICENSE ${OUT_DIR}/licenses.txt)
 
+# copy readme.pdf from root into output directory, if it exists (to create a self-contained github artifact)
+if( EXISTS "${CMAKE_SOURCE_DIR)/readme.pdf" )
+	file( COPY "${CMAKE_SOURCE_DIR)/readme.pdf" "${OUT_DIR}/readme.pdf")
+endif()
+
+# tell visual studio which project to launch when "run" is triggered
 set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT capture)
