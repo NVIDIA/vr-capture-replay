@@ -7,16 +7,14 @@ jobs:
   convert_via_pandoc:
     runs-on: ubuntu-22.04
     steps:
-      - name: Create _out folder
-        run: mkdir _out
       - name: Checkout
         uses: actions/checkout@v4
       - name: Pandoc conversion
         uses: docker://pandoc/latex:2.9
         with:
-          args: -f markdown -t pdf -o _out/readme.pdf README.md
+          args: -f markdown -t pdf -o readme.pdf README.md
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: readme.pdf
-          path: _out
+          path: ./readme.pdf
