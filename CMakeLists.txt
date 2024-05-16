@@ -80,7 +80,7 @@ addLicense("vr-capture-replay" ${CMAKE_SOURCE_DIR}/LICENSE ${OUT_DIR}/licenses.t
 
 # copy readme.pdf from root into output directory, if it exists (to create a self-contained github artifact)
 if( EXISTS "${CMAKE_SOURCE_DIR}/readme.pdf" )
-	file( COPY "${CMAKE_SOURCE_DIR}/readme.pdf" "${OUT_DIR}/readme.pdf")
+	file( COPY_FILE "${CMAKE_SOURCE_DIR}/readme.pdf" "${OUT_DIR}/readme.pdf")
 endif()
 
 # tell visual studio which project to launch when "run" is triggered
