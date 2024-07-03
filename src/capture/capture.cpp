@@ -21,6 +21,10 @@
 
 #include <source_location>
 
+using namespace std::literals::string_literals;
+
+//=======================
+// Command line arguments
 struct Args : MainArguments<Args>
 {
   float                    sampleFreq = option( "sampling_freq", 's', "sampling frequency in Hz, default: 2xHMD display frequency" ) = -1.0f;
@@ -30,8 +34,274 @@ struct Args : MainArguments<Args>
                                            .validator( []( auto v ) { return v.size() == 3 || v.size() == 0; } );
   bool     noNotifyHMD = option( "noNotifications", 'n', "suppress notifications for start, segment, end in HMD" );
   uint32_t notifyTime = option( "note_time", 't', "for how long to show notifications, default: 1000ms" ) = 1000;
+  bool     logActions                                                                                     = option( "logActions", 'l', "log detected actions" );
 };
 
+#define SERIALIZE_MAP( Type, values )                           \
+  template <class Archive>                                      \
+  void save( Archive & archive ) const                          \
+  {                                                             \
+    for ( auto const & value : values )                         \
+    {                                                           \
+      archive( cereal::make_nvp( value.first, value.second ) ); \
+    }                                                           \
+  }                                                             \
+                                                                \
+  template <class Archive>                                      \
+  void load( Archive & archive )                                \
+  {                                                             \
+    char const * name;                                          \
+    do                                                          \
+    {                                                           \
+      name = archive.getNodeName();                             \
+      if ( name )                                               \
+      {                                                         \
+        Type value;                                             \
+        archive( value );                                       \
+        values.emplace( name, std::move( value ) );             \
+      }                                                         \
+    } while ( name );                                           \
+  }
+
+#define SERIALIZE_OPTIONAL( field ) \
+  try                               \
+  {                                 \
+    archive( CEREAL_NVP( field ) ); \
+  }                                 \
+  catch ( ... )                     \
+  {                                 \
+  }
+
+//==============================================
+// Representation of an action manifest file
+struct DefaultBinding
+{
+  std::string controller_type;
+  std::string binding_url;
+
+  template <class Archive>
+  void serialize( Archive & archive )
+  {
+    archive( CEREAL_NVP( controller_type ), CEREAL_NVP( binding_url ) );
+  }
+};
+
+struct Action
+{
+  std::string name;
+  std::string type;
+
+  template <class Archive>
+  void serialize( Archive & archive ) const
+  {
+    archive( CEREAL_NVP( name ), CEREAL_NVP( type ) );
+  }
+};
+
+struct ActionSet
+{
+  std::string name;
+  std::string usage;
+
+  template <class Archive>
+  void serialize( Archive & archive )
+  {
+    archive( CEREAL_NVP( name ), CEREAL_NVP( usage ) );
+  }
+};
+
+struct ActionManifest
+{
+  std::vector<DefaultBinding> default_bindings;
+  std::vector<Action>         actions;
+  std::vector<ActionSet>      action_sets;
+
+  template <class Archive>
+  void serialize( Archive & archive )
+  {
+    archive( CEREAL_NVP( default_bindings ), CEREAL_NVP( actions ), CEREAL_NVP( action_sets ) );
+  }
+};
+
+void epilogue( cereal::JSONOutputArchive &, const ActionManifest & ) {}
+
+void prologue( cereal::JSONOutputArchive &, const ActionManifest & ) {}
+
+//==============================================
+// Representation of a capture bindings file
+struct Haptic
+{
+  std::string output;
+  std::string path;
+
+  template <class Archive>
+  void serialize( Archive & archive )
+  {
+    archive( CEREAL_NVP( output ), CEREAL_NVP( path ) );
+  }
+};
+
+struct Pose
+{
+  std::string output;
+  std::string path;
+
+  template <class Archive>
+  void serialize( Archive & archive )
+  {
+    archive( CEREAL_NVP( output ), CEREAL_NVP( path ) );
+  }
+};
+
+struct Input
+{
+  std::string output;
+
+  template <class Archive>
+  void serialize( Archive & archive )
+  {
+    archive( CEREAL_NVP( output ) );
+  }
+};
+
+struct Inputs
+{
+  std::map<std::string, Input> inputs;
+
+  SERIALIZE_MAP( Input, inputs );
+};
+
+struct Source
+{
+  Inputs      inputs;
+  std::string mode;
+  std::string path;
+
+  template <class Archive>
+  void serialize( Archive & archive )
+  {
+    archive( CEREAL_NVP( inputs ), CEREAL_NVP( mode ), CEREAL_NVP( path ) );
+  }
+};
+
+struct Actions
+{
+  std::vector<Haptic> haptics;
+  std::vector<Pose>   poses;
+  std::vector<Source> sources;
+
+  template <class Archive>
+  void serialize( Archive & archive )
+  {
+    archive( CEREAL_NVP( haptics ), CEREAL_NVP( poses ), CEREAL_NVP( sources ) );
+  }
+};
+
+struct Bindings
+{
+  Actions actions;
+
+  template <class Archive>
+  void serialize( Archive & archive )
+  {
+    archive( ::cereal::make_nvp( "/actions/capture", actions ) );
+  }
+};
+
+struct ControllerBindings
+{
+  Bindings    bindings;
+  std::string category;
+  std::string controller_type;
+  std::string description;
+  std::string name;
+
+  template <class Archive>
+  void serialize( Archive & archive )
+  {
+    archive( CEREAL_NVP( bindings ), CEREAL_NVP( category ), CEREAL_NVP( controller_type ), CEREAL_NVP( description ), CEREAL_NVP( name ) );
+  }
+};
+
+void epilogue( cereal::JSONOutputArchive &, const ControllerBindings & ) {}
+
+void prologue( cereal::JSONOutputArchive &, const ControllerBindings & ) {}
+
+//==============================================
+// Representation of the file *_profile.json
+struct InputBindingui
+{
+  std::string image;
+
+  template <class Archive>
+  void serialize( Archive & archive )
+  {
+    archive( CEREAL_NVP( image ) );
+  }
+};
+
+struct InputBlock
+{
+  std::string type;
+  std::string side;
+  std::string skeleton;
+  uint32_t    order = ~0;
+  bool        click = false;
+  bool        force = false;
+  bool        touch = false;
+  bool        value = false;
+
+  template <class Archive>
+  void serialize( Archive & archive )
+  {
+    // required fields
+    archive( CEREAL_NVP( type ) );
+
+    // optional fields
+    SERIALIZE_OPTIONAL( click );
+    SERIALIZE_OPTIONAL( force );
+    SERIALIZE_OPTIONAL( order );
+    SERIALIZE_OPTIONAL( side );
+    SERIALIZE_OPTIONAL( skeleton );
+    SERIALIZE_OPTIONAL( touch );
+    SERIALIZE_OPTIONAL( value );
+  }
+};
+
+struct InputSource
+{
+  std::map<std::string, InputBlock> inputs;
+
+  SERIALIZE_MAP( InputBlock, inputs );
+};
+
+struct Profile
+{
+  std::string    jsonid;
+  std::string    controller_type;
+  std::string    device_class;
+  std::string    input_bindingui_mode;
+  InputBindingui input_bindingui_right;
+  InputSource    input_source;
+
+  template <class Archive>
+  void serialize( Archive & archive )
+  {
+    archive( CEREAL_NVP( jsonid ),
+             CEREAL_NVP( controller_type ),
+             CEREAL_NVP( input_bindingui_mode ),
+             CEREAL_NVP( input_bindingui_right ),
+             CEREAL_NVP( input_source ) );
+
+    SERIALIZE_OPTIONAL( device_class );
+  }
+};
+
+void epilogue( cereal::JSONInputArchive &, const Profile & ) {}
+
+void prologue( cereal::JSONInputArchive &, const Profile & ) {}
+
+//==========================
 class Capture
 {
 public:
@@ -58,27 +328,48 @@ public:
   void                               writeTrackingData();
 
 private:
-  void                                         appendActions( std::string modelNumber, VRData::Hand hand );
-  VRData::Device                               collectDeviceProperties( const vr::TrackedDeviceIndex_t deviceId ) const;
-  void                                         gatherTrackedDevices( float sampleFrequency );
-  vr::VRActionHandle_t                         getActionHandle( std::string const & actionString ) const;
-  std::vector<VRData::DevicePose>              getDevicePoses();
-  void                                         initActiveSectionSet();
-  void                                         initChaperone();
-  void                                         initOverlays( bool notifyHMD );
-  void                                         initVRSystem();
-  void                                         printConfiguration() const;
-  void                                         printConfiguration( std::stringstream & ss, VRData::Device const & device ) const;
-  std::pair<std::string, vr::VRActionHandle_t> setupAction( std::vector<std::string> const & actionDescription, std::string const & actionKind );
-  void                                         writeHardwareData();
+  bool                            addAction( std::string const & actionString, std::vector<Action> & actions );
+  void                            addBindingSource( VRData::Action const & action, std::vector<Source> & sources );
+  void                            appendActions( std::vector<VRData::Action> const & actions );
+  std::vector<VRData::Action>     collectActions( VRData::Hand const & hand ) const;
+  VRData::Device                  collectDeviceProperties( const vr::TrackedDeviceIndex_t deviceId ) const;
+  void                            gatherTrackedDevices( float sampleFrequency );
+  void                            generateActionManifestFile( std::string const & path );
+  void                            generateControllerBindingsFile( std::filesystem::path const & path );
+  vr::VRActionHandle_t            getActionHandle( std::string const & actionString ) const;
+  std::vector<VRData::DevicePose> getDevicePoses();
+  template <typename ValueType>
+  void                                                          getDevicePropertyValueArray( vr::TrackedDeviceIndex_t                                                   deviceId,
+                                                                                             std::pair<vr::ETrackedDeviceProperty, std::string_view> const &            deviceProperty,
+                                                                                             std::map<uint32_t, VRData::Device::PropertyData<std::vector<ValueType>>> & properties ) const;
+  void                                                          initActiveSectionSet();
+  void                                                          initChaperone();
+  void                                                          initOverlays( bool notifyHMD );
+  void                                                          initVRSystem();
+  void                                                          printConfiguration() const;
+  void                                                          printConfiguration( std::stringstream & ss, VRData::Device const & device ) const;
+  std::pair<std::string, Profile>                               readProfile( vr::TrackedDeviceIndex_t deviceIndex, VRData::Device const & device ) const;
+  std::tuple<VRData::Action, std::string, vr::VRActionHandle_t> setupAction( std::vector<std::string> const & actionDescription,
+                                                                             std::string const &              actionKind );
+  void                                                          writeHardwareData();
+
+private:
+  struct ActionData
+  {
+    VRData::Action       action  = {};
+    bool                 isAdded = {};
+    vr::VRActionHandle_t handle  = vr::k_ulInvalidActionHandle;
+    std::string          name    = {};
+  };
 
 private:
   std::vector<ActionCapture>            m_actionCaptures        = {};
   VRData::HardwareData                  m_hardwareData          = {};
   vr::TrackedDeviceIndex_t              m_maxTrackedDeviceIndex = {};
-  vr::VRActionHandle_t                  m_segmentActionHandle   = vr::k_ulInvalidActionHandle;
-  vr::VRActionHandle_t                  m_startActionHandle     = vr::k_ulInvalidActionHandle;
-  std::string                           m_startActionString     = {};
+  Profile                               m_profile               = {};
+  std::string                           m_profilePath           = {};
+  ActionData                            m_segmentAction         = {};
+  ActionData                            m_startAction           = {};
   std::vector<vr::TrackedDeviceIndex_t> m_trackedDeviceIndices  = {};
   VRData::TrackingData                  m_trackingData          = {};
   vr::VRActiveActionSet_t               m_vrActiveActionSet     = {};
@@ -89,6 +380,10 @@ private:
 };
 
 void checkFailure( bool success, std::string const & failureMessage = {}, std::source_location const location = std::source_location::current() );
+void checkFailure( vr::EVRApplicationError    applicationError,
+                   vr::IVRApplications *      applications,
+                   std::source_location const location = std::source_location::current() );
+void checkFailure( vr::EVRSettingsError settingsError, vr::CVRSettingHelper & setting, std::source_location const location = std::source_location::current() );
 void checkFailure( vr::ETrackedPropertyError  trackedPropertyError,
                    vr::IVRSystem *            vrSystem,
                    std::source_location const location = std::source_location::current() );
@@ -106,6 +401,7 @@ void                  initLogging();
 std::unique_ptr<Args> parseCommandLine( int argc, char * argv[] );
 void                  printDeviceInfo( vr::IVRSystem * vrSystem, vr::TrackedDeviceIndex_t deviceIndex, vr::ETrackedDeviceClass deviceClass );
 std::string           to_string( VRData::Action const & action );
+std::string           to_string( VRData::ActionType actionType );
 
 int main( int argc, char * argv[] )
 {
@@ -170,36 +466,50 @@ int main( int argc, char * argv[] )
 
       VRData::TrackingItem trackingItem = capture.createTrackingItem( start );
 
-      // record action data
+      // capture action data
       for ( auto & actionCapture : capture.getActionCaptures() )
       {
         vr::VRActionHandle_t   handle = actionCapture.handle;
         size_t                 index  = actionCapture.index;
-        const VRData::Action & action = capture.getHardwareData().m_actions[index];
+        VRData::Action const & action = capture.getHardwareData().m_actions[index];
         VRData::ActionData     actionData{ index };
-        bool                   changed{ false };
 
-        if ( VRData::ActionType( action.type ) == VRData::ActionType::DIG )
+        vr::EVRInputError            inputError;
+        vr::InputDigitalActionData_t digitalData{ 0 };
+        vr::InputAnalogActionData_t  analogData{ 0 };
+
+        switch ( action.type )
         {
-          vr::InputDigitalActionData_t data{ 0 };
-          capture.getVRInput()->GetDigitalActionData( handle, &data, sizeof( data ), vr::k_ulInvalidInputValueHandle );
-          changed           = data.bChanged;
-          actionData.val[0] = data.bState;
-        }
-        else if ( VRData::ActionType( action.type ) == VRData::ActionType::VEC1 )
-        {
-          vr::InputAnalogActionData_t data{ 0 };
-          capture.getVRInput()->GetAnalogActionData( handle, &data, sizeof( data ), vr::k_ulInvalidInputValueHandle );
-          changed           = data.deltaX != 0.0f;
-          actionData.val[0] = data.x;
-        }
-        else if ( VRData::ActionType( action.type ) == VRData::ActionType::VEC2 )
-        {
-          vr::InputAnalogActionData_t data{ 0 };
-          capture.getVRInput()->GetAnalogActionData( handle, &data, sizeof( data ), vr::k_ulInvalidInputValueHandle );
-          changed           = data.deltaX != 0.0f || data.deltaY != 0.0f;
-          actionData.val[0] = data.x;
-          actionData.val[1] = data.y;
+          case VRData::ActionType::BOOLEAN:
+            inputError = capture.getVRInput()->GetDigitalActionData( handle, &digitalData, sizeof( digitalData ), vr::k_ulInvalidInputValueHandle );
+            assert( inputError == vr::EVRInputError::VRInputError_None );
+            actionData.val[0] = digitalData.bState;
+            if ( args->logActions && digitalData.bChanged )
+            {
+              LOGI( "%s: %s\n", to_string( action ).c_str(), digitalData.bState ? "pressed" : "released" );
+            }
+            break;
+          case VRData::ActionType::SCALAR:
+            inputError = capture.getVRInput()->GetAnalogActionData( handle, &analogData, sizeof( analogData ), vr::k_ulInvalidInputValueHandle );
+            assert( inputError == vr::EVRInputError::VRInputError_None );
+            actionData.val[0] = analogData.x;
+            if ( args->logActions && ( analogData.deltaX != 0.0f ) )
+            {
+              LOGI( "%s: %f\n", to_string( action ).c_str(), analogData.x );
+            }
+            break;
+          case VRData::ActionType::VECTOR2D:
+            inputError = capture.getVRInput()->GetAnalogActionData( handle, &analogData, sizeof( analogData ), vr::k_ulInvalidInputValueHandle );
+            assert( inputError == vr::EVRInputError::VRInputError_None );
+            actionData.val[0] = analogData.x;
+            actionData.val[1] = analogData.y;
+            if ( args->logActions && ( ( analogData.deltaX != 0.0f ) || ( analogData.deltaY != 0.0f ) ) )
+            {
+              LOGI( "%s: %f, %f\n", to_string( action ).c_str(), analogData.x, analogData.y );
+            }
+            break;
+          case VRData::ActionType::VECTOR3D: assert( false ); break;
+          case VRData::ActionType::UNKNOWN: assert( false ); break;
         }
 
         // We could filter here to only write an action when it has changed, but
@@ -242,6 +552,32 @@ void checkFailure( bool success, std::string const & failureMessage, std::source
                                            location.column(),
                                            location.function_name(),
                                            failureMessage.empty() ? "check failed" : failureMessage ) );
+  }
+}
+
+void checkFailure( vr::EVRApplicationError applicationError, vr::IVRApplications * applications, std::source_location const location )
+{
+  if ( ( applicationError != vr::VRApplicationError_None ) && ( applicationError != vr::VRApplicationError_PropertyNotSet ) )
+  {
+    throw std::runtime_error( std::format( "\t{}({},{}) {}: {}",
+                                           location.file_name(),
+                                           location.line(),
+                                           location.column(),
+                                           location.function_name(),
+                                           applications->GetApplicationsErrorNameFromEnum( applicationError ) ) );
+  }
+}
+
+void checkFailure( vr::EVRSettingsError settingsError, vr::CVRSettingHelper & setting, std::source_location const location )
+{
+  if ( ( settingsError != vr::VRSettingsError_None ) && ( settingsError != vr::VRSettingsError_UnsetSettingHasNoDefault ) )
+  {
+    throw std::runtime_error( std::format( "\t{}({},{}) {}: {}",
+                                           location.file_name(),
+                                           location.line(),
+                                           location.column(),
+                                           location.function_name(),
+                                           setting.GetSettingsErrorNameFromEnum( settingsError ) ) );
   }
 }
 
@@ -383,17 +719,28 @@ std::string to_string( VRData::Action const & action )
   return std::string( ( action.hand == VRData::Hand::LEFT ) ? "left" : "right" ) + "_" + action.name + "_" + action.input;
 }
 
+std::string to_string( VRData::ActionType actionType )
+{
+  switch ( actionType )
+  {
+    case VRData::ActionType::BOOLEAN: return "boolean";
+    case VRData::ActionType::SCALAR: return "vector1";
+    case VRData::ActionType::VECTOR2D: return "vector2";
+    case VRData::ActionType::VECTOR3D: return "vector3";
+    case VRData::ActionType::UNKNOWN:
+    default: assert( false ); return "";
+  }
+}
+
 Capture::Capture( Args const & args )
 {
   initVRSystem();
-  initActiveSectionSet();
   initChaperone();
   initOverlays( !args.noNotifyHMD );
   gatherTrackedDevices( args.sampleFreq );
-
-  std::tie( m_startActionString, m_startActionHandle ) = setupAction( args.startAction, "start recording" );
-  std::tie( std::ignore, m_segmentActionHandle )       = setupAction( args.segmentAction, "segment recording" );
-
+  std::tie( m_startAction.action, m_startAction.name, m_startAction.handle )       = setupAction( args.startAction, "start recording" );
+  std::tie( m_segmentAction.action, m_segmentAction.name, m_segmentAction.handle ) = setupAction( args.segmentAction, "segment recording" );
+  initActiveSectionSet();
   printConfiguration();
 }
 
@@ -408,7 +755,7 @@ VRData::TrackingItem Capture::createTrackingItem( std::chrono::time_point<std::c
   VRData::TrackingItem trackingItem;
   trackingItem.m_time = std::chrono::duration<float>( std::chrono::steady_clock::now() - start ).count();
 
-  // record tracking data for HMD and controllers
+  // capture tracking data for HMD and controllers
   std::vector<VRData::DevicePose> devicePoses = getDevicePoses();  // returns HMD, CTR0, CTR1, ....
   // first item into HMD
   auto it                = devicePoses.begin();
@@ -422,13 +769,13 @@ VRData::TrackingItem Capture::createTrackingItem( std::chrono::time_point<std::c
 
 void Capture::finishSegmentAction()
 {
-  assert( m_segmentActionHandle != vr::k_ulInvalidActionHandle );
+  assert( m_segmentAction.handle != vr::k_ulInvalidActionHandle );
 
   vr::InputDigitalActionData_t data{ 0 };
   do
   {
     m_vrInput->UpdateActionState( &m_vrActiveActionSet, sizeof( vr::VRActiveActionSet_t ), 1 );
-    m_vrInput->GetDigitalActionData( m_segmentActionHandle, &data, sizeof( data ), vr::k_ulInvalidInputValueHandle );
+    m_vrInput->GetDigitalActionData( m_segmentAction.handle, &data, sizeof( data ), vr::k_ulInvalidInputValueHandle );
   } while ( data.bState );
 }
 
@@ -489,11 +836,11 @@ bool Capture::segmentActionTriggered()
 {
   m_vrInput->UpdateActionState( &m_vrActiveActionSet, sizeof( vr::VRActiveActionSet_t ), 1 );
 
-  if ( m_segmentActionHandle != vr::k_ulInvalidActionHandle )
+  if ( m_segmentAction.handle != vr::k_ulInvalidActionHandle )
   {
-    // TODO: allow more than DIG input?
+    // TODO: allow more than BOOLEAN input?
     vr::InputDigitalActionData_t data{ 0 };
-    m_vrInput->GetDigitalActionData( m_segmentActionHandle, &data, sizeof( data ), vr::k_ulInvalidInputValueHandle );
+    m_vrInput->GetDigitalActionData( m_segmentAction.handle, &data, sizeof( data ), vr::k_ulInvalidInputValueHandle );
     return data.bState;
   }
   return false;
@@ -515,22 +862,26 @@ void Capture::setupInitialPose()
 
 void Capture::waitForStartAction( bool notify, uint32_t notifyTime )
 {
-  if ( m_startActionHandle != vr::k_ulInvalidActionHandle )
+  if ( m_startAction.handle != vr::k_ulInvalidActionHandle )
   {
-    LOGI( "Ready - use %s to start recording\n", m_startActionString.c_str() );
-    notifyHMD( notify, "Ready - use " + m_startActionString + " to start recording", notifyTime, 3000 );
+    LOGI( "Ready - use %s to start recording\n", m_startAction.name.c_str() );
+    notifyHMD( notify, "Ready - use " + m_startAction.name + " to start recording", notifyTime, 3000 );
     while ( true )
     {
-      m_vrInput->UpdateActionState( &m_vrActiveActionSet, sizeof( m_vrActiveActionSet ), 1 );
+      checkFailure( m_vrInput->UpdateActionState( &m_vrActiveActionSet, sizeof( m_vrActiveActionSet ), 1 ),
+                    "Failed to update action state while waiting for " + m_startAction.name,
+                    "" );
       vr::InputDigitalActionData_t data{ 0 };
-      m_vrInput->GetDigitalActionData( m_startActionHandle, &data, sizeof( data ), vr::k_ulInvalidInputValueHandle );
+      checkFailure( m_vrInput->GetDigitalActionData( m_startAction.handle, &data, sizeof( data ), vr::k_ulInvalidInputValueHandle ),
+                    "Failed to get action data for " + m_startAction.name,
+                    "" );
       if ( data.bState )
       {
         // wait for action to end
         while ( data.bState )
         {
           m_vrInput->UpdateActionState( &m_vrActiveActionSet, sizeof( m_vrActiveActionSet ), 1 );
-          m_vrInput->GetDigitalActionData( m_segmentActionHandle, &data, sizeof( data ), vr::k_ulInvalidInputValueHandle );
+          m_vrInput->GetDigitalActionData( m_segmentAction.handle, &data, sizeof( data ), vr::k_ulInvalidInputValueHandle );
         }
         break;
       }
@@ -590,54 +941,47 @@ void Capture::writeTrackingData()
   m_trackingData = {};
 }
 
-void Capture::appendActions( std::string modelNumber, VRData::Hand hand )
+bool Capture::addAction( std::string const & actionString, std::vector<Action> & actions )
 {
-  std::vector<VRData::Action> newActions;
-  if ( ( modelNumber.find( "VIVE" ) != std::string::npos ) || ( modelNumber.find( "Vive" ) != std::string::npos ) )
+  bool added = false;
+  if ( !actionString.empty() &&
+       std::find_if( actions.begin(), actions.end(), [&actionString]( Action const & action ) { return action.name.ends_with( actionString ); } ) ==
+         actions.end() )
   {
-    newActions = { { VRData::ActionType::DIG, "system", "click", hand },
-                   { VRData::ActionType::DIG, "trigger", "click", hand },
-                   { VRData::ActionType::DIG, "trigger", "touch", hand },
-                   { VRData::ActionType::VEC1, "trigger", "value", hand },
-                   { VRData::ActionType::DIG, "grip", "click", hand },
-                   { VRData::ActionType::DIG, "trackpad", "click", hand },
-                   { VRData::ActionType::DIG, "trackpad", "touch", hand },
-                   { VRData::ActionType::VEC2, "trackpad", "value", hand },
-                   { VRData::ActionType::DIG, "application_menu", "click", hand } };
+    actions.push_back( { "/actions/capture/in/" + actionString, "boolean" } );
+    added = true;
   }
-  else if ( modelNumber.find( "Oculus" ) != std::string::npos )
-  {
-    newActions = { { VRData::ActionType::DIG, "system", "click", hand },   { VRData::ActionType::DIG, "trigger", "click", hand },
-                   { VRData::ActionType::DIG, "trigger", "touch", hand },  { VRData::ActionType::VEC1, "trigger", "value", hand },
-                   { VRData::ActionType::VEC1, "grip", "value", hand },    { VRData::ActionType::DIG, "grip", "touch", hand },
-                   { VRData::ActionType::DIG, "joystick", "click", hand }, { VRData::ActionType::DIG, "joystick", "touch", hand },
-                   { VRData::ActionType::VEC2, "joystick", "value", hand } };
-    if ( hand == VRData::Hand::RIGHT )
-    {
-      newActions.push_back( { VRData::ActionType::DIG, "a", "click", hand } );
-      newActions.push_back( { VRData::ActionType::DIG, "b", "click", hand } );
-    }
-    else if ( hand == VRData::Hand::LEFT )
-    {
-      newActions.push_back( { VRData::ActionType::DIG, "x", "click", hand } );
-      newActions.push_back( { VRData::ActionType::DIG, "y", "click", hand } );
-    }
-  }
-  else if ( modelNumber.find( "Index" ) != std::string::npos )
-  {
-    // IMPLEMENT ME
-    LOGE( "Unsupported controller, sorry, not setting up any actions.\n\n" );
-  }
-  else
-  {
-    LOGE( "Unsupported controller, sorry, not setting up any actions.\n\n" );
-  }
+  return added;
+}
 
+void Capture::addBindingSource( VRData::Action const & action, std::vector<Source> & sources )
+{
+  assert( ( action.hand == VRData::Hand::LEFT ) || ( action.hand == VRData::Hand::RIGHT ) );
+  std::string hand = ( action.hand == VRData::Hand::LEFT ) ? "left" : "right";
+  std::string path = "/user/hand/" + hand + "/input/" + action.name;
+
+  auto sourcesIt = std::find_if( sources.begin(), sources.end(), [&path]( Source const & source ) { return source.path == path; } );
+  if ( sourcesIt == sources.end() )
+  {
+    auto inputIt = m_profile.input_source.inputs.find( "/input/" + action.name );
+    assert( inputIt != m_profile.input_source.inputs.end() );
+    sources.emplace_back( Inputs(), inputIt->second.type, path );
+    sourcesIt = std::prev( sources.end() );
+  }
+  assert( !sourcesIt->inputs.inputs.contains( action.input ) );
+  std::string key               = ( action.input == "value" )
+                                  ? ( ( sourcesIt->mode == "joystick" ) ? "position" : ( ( sourcesIt->mode == "trigger" ) ? "pull" : action.input ) )
+                                  : action.input;
+  sourcesIt->inputs.inputs[key] = { "/actions/capture/in/" + to_string( action ) };
+}
+
+void Capture::appendActions( std::vector<VRData::Action> const & actions )
+{
   LOGI( "\t   Actions:" );
   std::string actionList;
 
   // enumerate actions, get handles for them
-  for ( const auto & action : newActions )
+  for ( const auto & action : actions )
   {
     actionList += "\n\t           " + action.name + "_" + action.input;
 
@@ -657,13 +1001,124 @@ void Capture::appendActions( std::string modelNumber, VRData::Hand hand )
   LOGI( "%s", actionList.c_str() );
 }
 
+std::vector<VRData::Action> Capture::collectActions( VRData::Hand const & hand ) const
+{
+  assert( ( hand == VRData::Hand::LEFT ) || ( hand == VRData::Hand::RIGHT ) );
+  std::string side = ( hand == VRData::Hand::LEFT ) ? "left" : "right";
+
+  // From Keith Bradner (keithb@valvesoftware.com):
+  //  The "type" that components can be is limited - then they'll have peers like "touch", "click", "value" - members that correspond to bindable
+  //  inputs. Additionally, joystick and trackpad automatically have "position", "x", and "y" inputs. You can find more detailed documentation on
+  //  the openvr wiki here: https://github.com/ValveSoftware/openvr/wiki/Input-Profiles under "input source type". As for data types: Click and
+  //  Touch are booleans. Value, X, Y, and Force are Vector1, and Position is Vector2. If there's one you find that I've forgotten let us know
+  //  and we can tell you what it is.
+
+  std::vector<VRData::Action> actions;
+  for ( auto const & input : m_profile.input_source.inputs )
+  {
+    if ( ( input.second.side.empty() || ( input.second.side == side ) ) &&
+         ( input.second.click || input.second.force || input.second.touch || input.second.value ) )
+    {
+      assert( input.first.starts_with( "/input/" ) );
+      std::string name = input.first.substr( strlen( "/input/" ) );
+      if ( input.second.type == "button" )
+      {
+        // click is automatic
+        actions.push_back( { VRData::ActionType::BOOLEAN, name, "click", hand } );
+        if ( input.second.touch )
+        {
+          actions.push_back( { VRData::ActionType::BOOLEAN, name, "touch", hand } );
+        }
+        if ( input.second.force || input.second.value )
+        {
+          throw std::runtime_error( std::format( "Encountered unsupported component <{}> for input type <{}> named <{}>",
+                                                 input.second.force ? "force" : "value",
+                                                 input.second.type.c_str(),
+                                                 name.c_str() ) );
+        }
+      }
+      else if ( input.second.type == "haptic" )
+      {
+        // TODO: determine what to do with such an input!
+      }
+      else if ( input.second.type == "joystick" )
+      {
+        if ( input.second.click )
+        {
+          actions.push_back( { VRData::ActionType::BOOLEAN, name, "click", hand } );
+        }
+        if ( input.second.touch )
+        {
+          actions.push_back( { VRData::ActionType::BOOLEAN, name, "touch", hand } );
+        }
+        // value is automatic
+        actions.push_back( { VRData::ActionType::VECTOR2D, name, "value", hand } );
+        if ( input.second.force )
+        {
+          throw std::runtime_error( std::format( "Encountered unsupported component <force> for input type <{}> named <{}>",
+                                                 input.second.type.c_str(),
+                                                 name.c_str() ) );
+        }
+      }
+      else if ( input.second.type == "pose" )
+      {
+        // TODO: determine what to do with such an input!
+      }
+      else if ( input.second.type == "skeleton" )
+      {
+        // TODO: determine what to do with such an input!
+      }
+      else if ( input.second.type == "trackpad" )
+      {
+        if ( input.second.click )
+        {
+          actions.push_back( { VRData::ActionType::BOOLEAN, name, "click", hand } );
+        }
+        if ( input.second.force )
+        {
+          actions.push_back( { VRData::ActionType::SCALAR, name, "force", hand } );
+        }
+        // position and touch are automatic
+        actions.push_back( { VRData::ActionType::VECTOR2D, name, "position", hand } );
+        actions.push_back( { VRData::ActionType::BOOLEAN, name, "touch", hand } );
+        if ( input.second.value )
+        {
+          throw std::runtime_error(
+            std::format( "Encountered unsupported component <value> for input type <{}> named <{}>", input.second.type.c_str(), name.c_str() ) );
+        }
+      }
+      else if ( input.second.type == "trigger" )
+      {
+        if ( input.second.click )
+        {
+          actions.push_back( { VRData::ActionType::BOOLEAN, name, "click", hand } );
+        }
+        if ( input.second.force )
+        {
+          actions.push_back( { VRData::ActionType::SCALAR, name, "force", hand } );
+        }
+        if ( input.second.touch )
+        {
+          actions.push_back( { VRData::ActionType::BOOLEAN, name, "touch", hand } );
+        }
+        // value is automatic
+        actions.push_back( { VRData::ActionType::SCALAR, name, "value", hand } );
+      }
+      else
+      {
+        throw std::runtime_error( std::format( "Encountered unknown input type <{}> in file <{}>", input.second.type, m_profilePath ) );
+      }
+    }
+  }
+  return actions;
+}
+
 VRData::Device Capture::collectDeviceProperties( const vr::TrackedDeviceIndex_t deviceId ) const
 {
   VRData::Device device;
   device.m_deviceClass = m_vrSystem->GetTrackedDeviceClass( deviceId );
 
-  // We're not interested in Prop_GraphicsAdapterLuid_Uint64 and Prop_Invalid
-  // I don't know anything about Prop_ParentContainer
+  // TODO: don't know anything about Prop_Invalid or Prop_ParentContainer
   // TODO: don't know how to get binary data
   // TODO: don't know how to get vector3 data
   std::set<vr::ETrackedDeviceProperty> skippedProperties{ vr::ETrackedDeviceProperty::Prop_DisplayColorMultLeft_Vector3,
@@ -671,7 +1126,6 @@ VRData::Device Capture::collectDeviceProperties( const vr::TrackedDeviceIndex_t 
                                                           vr::ETrackedDeviceProperty::Prop_DisplayHiddenArea_Binary_End,
                                                           vr::ETrackedDeviceProperty::Prop_DisplayHiddenArea_Binary_Start,
                                                           vr::ETrackedDeviceProperty::Prop_DisplayMCImageData_Binary,
-                                                          vr::ETrackedDeviceProperty::Prop_GraphicsAdapterLuid_Uint64,
                                                           vr::ETrackedDeviceProperty::Prop_ImuFactoryAccelerometerBias_Vector3,
                                                           vr::ETrackedDeviceProperty::Prop_ImuFactoryAccelerometerScale_Vector3,
                                                           vr::ETrackedDeviceProperty::Prop_ImuFactoryGyroBias_Vector3,
@@ -704,16 +1158,7 @@ VRData::Device Capture::collectDeviceProperties( const vr::TrackedDeviceIndex_t 
       }
       else if ( deviceProperty.second.ends_with( "Float_Array" ) )
       {
-        uint32_t byteSize = m_vrSystem->GetArrayTrackedDeviceProperty( deviceId, deviceProperty.first, vr::k_unFloatPropertyTag, nullptr, 0, &error );
-        assert( ( error == vr::TrackedProp_Success ) || ( error == vr::TrackedProp_UnknownProperty ) );
-        if ( error == vr::TrackedProp_Success )
-        {
-          assert( byteSize % sizeof( float ) == 0 );
-          std::vector<float> valueFloatArray( byteSize / sizeof( float ) );
-          m_vrSystem->GetArrayTrackedDeviceProperty( deviceId, deviceProperty.first, vr::k_unFloatPropertyTag, valueFloatArray.data(), byteSize, &error );
-          checkFailure( error, m_vrSystem );
-          device.m_floatArrayProperties[deviceProperty.first] = { std::string( deviceProperty.second ), valueFloatArray };
-        }
+        getDevicePropertyValueArray<float>( deviceId, deviceProperty, device.m_floatArrayProperties );
       }
       else if ( deviceProperty.second.ends_with( "Int32" ) )
       {
@@ -726,16 +1171,7 @@ VRData::Device Capture::collectDeviceProperties( const vr::TrackedDeviceIndex_t 
       }
       else if ( deviceProperty.second.ends_with( "Int32_Array" ) )
       {
-        uint32_t byteSize = m_vrSystem->GetArrayTrackedDeviceProperty( deviceId, deviceProperty.first, vr::k_unInt32PropertyTag, nullptr, 0, &error );
-        assert( ( error == vr::TrackedProp_Success ) || ( error == vr::TrackedProp_UnknownProperty ) );
-        if ( error == vr::TrackedProp_Success )
-        {
-          assert( byteSize % sizeof( int32_t ) == 0 );
-          std::vector<int32_t> valueInt32Array( byteSize / sizeof( int32_t ) );
-          m_vrSystem->GetArrayTrackedDeviceProperty( deviceId, deviceProperty.first, vr::k_unInt32PropertyTag, valueInt32Array.data(), byteSize, &error );
-          checkFailure( error, m_vrSystem );
-          device.m_int32ArrayProperties[deviceProperty.first] = { std::string( deviceProperty.second ), valueInt32Array };
-        }
+        getDevicePropertyValueArray<int32_t>( deviceId, deviceProperty, device.m_int32ArrayProperties );
       }
       else if ( deviceProperty.second.ends_with( "Matrix34" ) )
       {
@@ -748,17 +1184,7 @@ VRData::Device Capture::collectDeviceProperties( const vr::TrackedDeviceIndex_t 
       }
       else if ( deviceProperty.second.ends_with( "Matrix34_Array" ) )
       {
-        uint32_t byteSize = m_vrSystem->GetArrayTrackedDeviceProperty( deviceId, deviceProperty.first, vr::k_unHmdMatrix34PropertyTag, nullptr, 0, &error );
-        assert( ( error == vr::TrackedProp_Success ) || ( error == vr::TrackedProp_UnknownProperty ) );
-        if ( error == vr::TrackedProp_Success )
-        {
-          assert( byteSize % sizeof( vr::HmdMatrix34_t ) == 0 );
-          std::vector<vr::HmdMatrix34_t> valueMatrix34Array( byteSize / sizeof( vr::HmdMatrix34_t ) );
-          m_vrSystem->GetArrayTrackedDeviceProperty(
-            deviceId, deviceProperty.first, vr::k_unHmdMatrix34PropertyTag, valueMatrix34Array.data(), byteSize, &error );
-          checkFailure( error, m_vrSystem );
-          device.m_matrix34ArrayProperties[deviceProperty.first] = { std::string( deviceProperty.second ), valueMatrix34Array };
-        }
+        getDevicePropertyValueArray<vr::HmdMatrix34_t>( deviceId, deviceProperty, device.m_matrix34ArrayProperties );
       }
       else if ( deviceProperty.second.ends_with( "String" ) )
       {
@@ -781,16 +1207,7 @@ VRData::Device Capture::collectDeviceProperties( const vr::TrackedDeviceIndex_t 
       }
       else if ( deviceProperty.second.ends_with( "Vector4_Array" ) )
       {
-        uint32_t byteSize = m_vrSystem->GetArrayTrackedDeviceProperty( deviceId, deviceProperty.first, vr::k_unHmdVector4PropertyTag, nullptr, 0, &error );
-        assert( ( error == vr::TrackedProp_Success ) || ( error == vr::TrackedProp_UnknownProperty ) );
-        if ( error == vr::TrackedProp_Success )
-        {
-          assert( byteSize % sizeof( vr::HmdVector4_t ) == 0 );
-          std::vector<vr::HmdVector4_t> valueVector4Array( byteSize / sizeof( vr::HmdVector4_t ) );
-          m_vrSystem->GetArrayTrackedDeviceProperty( deviceId, deviceProperty.first, vr::k_unHmdVector4PropertyTag, valueVector4Array.data(), byteSize, &error );
-          checkFailure( error, m_vrSystem );
-          device.m_vector4ArrayProperties[deviceProperty.first] = { std::string( deviceProperty.second ), valueVector4Array };
-        }
+        getDevicePropertyValueArray<float>( deviceId, deviceProperty, device.m_vector4ArrayProperties );
       }
       else
       {
@@ -836,13 +1253,29 @@ void Capture::gatherTrackedDevices( float sampleFrequency )
 
           m_trackedDeviceIndices.push_back( deviceIndex );
           m_hardwareData.m_controllers.push_back( VRData::Controller() );
-          VRData::Controller & c          = m_hardwareData.m_controllers.back();
-          c.m_device                      = collectDeviceProperties( deviceIndex );
+          VRData::Controller & c = m_hardwareData.m_controllers.back();
+          c.m_device             = collectDeviceProperties( deviceIndex );
+
+          auto propertyIt = c.m_device.m_stringProperties.find( vr::ETrackedDeviceProperty::Prop_ControllerType_String );
+          checkFailure( ( propertyIt != c.m_device.m_stringProperties.end() ) && !propertyIt->second.m_value.empty(),
+                        "Could not find ControllerType information for device " + std::to_string( deviceIndex ) );
+          if ( m_profile.controller_type.empty() )
+          {
+            assert( m_profilePath.empty() );
+            std::tie( m_profilePath, m_profile ) = readProfile( deviceIndex, c.m_device );
+          }
+          else
+          {
+            checkFailure( m_profile.controller_type == propertyIt->second.m_value,
+                          "Encountered unexpected controller type " + propertyIt->second.m_value + ", expected " + m_profile.controller_type );
+          }
+
           vr::ETrackedControllerRole role = m_vrSystem->GetControllerRoleForTrackedDeviceIndex( deviceIndex );
           if ( ( role == vr::TrackedControllerRole_LeftHand ) || ( role == vr::TrackedControllerRole_RightHand ) )
           {
-            c.m_hand = ( role == vr::TrackedControllerRole_LeftHand ) ? VRData::Hand::LEFT : VRData::Hand::RIGHT;
-            appendActions( c.m_device.m_stringProperties[vr::Prop_ModelNumber_String].m_value, c.m_hand );
+            c.m_hand                            = ( role == vr::TrackedControllerRole_LeftHand ) ? VRData::Hand::LEFT : VRData::Hand::RIGHT;
+            std::vector<VRData::Action> actions = collectActions( c.m_hand );
+            appendActions( actions );
           }
           else if ( role == vr::TrackedControllerRole_Invalid )
           {
@@ -878,12 +1311,81 @@ void Capture::gatherTrackedDevices( float sampleFrequency )
   m_maxTrackedDeviceIndex = *std::ranges::max_element( m_trackedDeviceIndices );
 }
 
+void Capture::generateActionManifestFile( std::string const & path )
+{
+  std::string controllerType = m_hardwareData.m_controllers.begin()->m_device.m_stringProperties.find( vr::Prop_ControllerType_String )->second.m_value;
+  for ( auto const & controller : m_hardwareData.m_controllers )
+  {
+    checkFailure( controller.m_device.m_stringProperties.find( vr::Prop_ControllerType_String )->second.m_value == controllerType,
+                  "Controllers of different type are not supported" );
+  }
+
+  ActionManifest actionManifest;
+  actionManifest.default_bindings.push_back( { controllerType, "capture_" + controllerType + "_bindings.json" } );
+
+  for ( auto const & a : m_hardwareData.m_actions )
+  {
+    actionManifest.actions.push_back( { "/actions/capture/in/" + to_string( a ), to_string( a.type ) } );
+  }
+  m_startAction.isAdded   = addAction( m_startAction.name, actionManifest.actions );
+  m_segmentAction.isAdded = addAction( m_segmentAction.name, actionManifest.actions );
+
+  actionManifest.action_sets.push_back( { "/actions/capture", "single" } );
+
+  LOGI( "Writing capture_action_manifest.json file: %s\n", path.c_str() );
+  std::ofstream ofile( path );
+  if ( !ofile )
+  {
+    throw std::runtime_error( std::format( "Failed to open for writing: {}", path ) );
+  }
+  cereal::JSONOutputArchive jsonOutArchive( ofile );
+  jsonOutArchive( actionManifest );
+}
+
+void Capture::generateControllerBindingsFile( std::filesystem::path const & modulePath )
+{
+  ControllerBindings controllerBindings;
+
+  controllerBindings.bindings.actions.haptics.push_back( { "/actions/capture/out/left_haptic", "/user/hand/left/output" } );
+  controllerBindings.bindings.actions.haptics.push_back( { "/actions/capture/out/right_haptic", "/user/hand/right/output" } );
+  controllerBindings.bindings.actions.poses.push_back( { "/actions/capture/in/left_pose", "/user/hand/left/pose/raw" } );
+  controllerBindings.bindings.actions.poses.push_back( { "/actions/capture/in/right_pose", "/user/hand/right/pose/raw" } );
+
+  for ( auto const & action : m_hardwareData.m_actions )
+  {
+    addBindingSource( action, controllerBindings.bindings.actions.sources );
+  }
+  if ( m_startAction.isAdded )
+  {
+    addBindingSource( m_startAction.action, controllerBindings.bindings.actions.sources );
+  }
+  if ( m_segmentAction.isAdded )
+  {
+    addBindingSource( m_segmentAction.action, controllerBindings.bindings.actions.sources );
+  }
+
+  controllerBindings.category        = "steamvr_input";
+  controllerBindings.controller_type = m_hardwareData.m_controllers.begin()->m_device.m_stringProperties.find( vr::Prop_ControllerType_String )->second.m_value;
+  controllerBindings.name            = "Capture " + controllerBindings.controller_type + " Controller Config";
+
+  std::string fileName = "capture_" + controllerBindings.controller_type + "_bindings.json";
+  LOGI( "Writing file: %s\n", ( modulePath / fileName ).string().c_str() );
+  std::ofstream ofile( fileName );
+  if ( !ofile )
+  {
+    throw std::runtime_error( std::format( "Failed to open for writing: {}", fileName ) );
+  }
+
+  cereal::JSONOutputArchive jsonOutArchive( ofile );
+  jsonOutArchive( controllerBindings );
+}
+
 vr::VRActionHandle_t Capture::getActionHandle( std::string const & actionString ) const
 {
-  // assemble input path of form /actions/record/in/actionString
+  // assemble input path of form /actions/capture/in/actionString
   // these need to match the definitions in the controller json files
   vr::VRActionHandle_t actionHandle = vr::k_ulInvalidActionHandle;
-  auto                 error        = m_vrInput->GetActionHandle( ( "/actions/record/in/" + actionString ).c_str(), &actionHandle );
+  auto                 error        = m_vrInput->GetActionHandle( ( "/actions/capture/in/" + actionString ).c_str(), &actionHandle );
   if ( error != vr::EVRInputError::VRInputError_None )
   {
     LOGE( "\tError getting action on %s: %i / %s\n", actionString.c_str(), error, magic_enum::enum_name( error ).data() );
@@ -907,23 +1409,84 @@ std::vector<VRData::DevicePose> Capture::getDevicePoses()
   return devicePoses;
 }
 
+template <typename ValueType>
+struct PropertyTag
+{
+  static constexpr vr::PropertyTypeTag_t value = vr::k_unInvalidPropertyTag;
+};
+
+template <>
+struct PropertyTag<float>
+{
+  static constexpr vr::PropertyTypeTag_t value = vr::k_unFloatPropertyTag;
+};
+
+template <>
+struct PropertyTag<int32_t>
+{
+  static constexpr vr::PropertyTypeTag_t value = vr::k_unInt32PropertyTag;
+};
+
+template <>
+struct PropertyTag<vr::HmdMatrix34_t>
+{
+  static constexpr vr::PropertyTypeTag_t value = vr::k_unHmdMatrix34PropertyTag;
+};
+
+template <>
+struct PropertyTag<vr::HmdVector4_t>
+{
+  static constexpr vr::PropertyTypeTag_t value = vr::k_unHmdVector4PropertyTag;
+};
+
+template <typename ValueType>
+void Capture::getDevicePropertyValueArray( vr::TrackedDeviceIndex_t                                                   deviceId,
+                                           std::pair<vr::ETrackedDeviceProperty, std::string_view> const &            deviceProperty,
+                                           std::map<uint32_t, VRData::Device::PropertyData<std::vector<ValueType>>> & properties ) const
+{
+  vr::ETrackedPropertyError error;
+  std::vector<ValueType>    values( 2 );
+  uint32_t                  byteSize = m_vrSystem->GetArrayTrackedDeviceProperty(
+    deviceId, deviceProperty.first, PropertyTag<ValueType>::value, values.data(), static_cast<uint32_t>( values.size() ) * sizeof( ValueType ), &error );
+  if ( error != vr::TrackedProp_UnknownProperty )
+  {
+    assert( ( error == vr::TrackedProp_Success ) || ( error == vr::TrackedProp_BufferTooSmall ) );
+    while ( error == vr::TrackedProp_BufferTooSmall )
+    {
+      values.resize( 2 * values.size() );
+      byteSize = m_vrSystem->GetArrayTrackedDeviceProperty(
+        deviceId, deviceProperty.first, PropertyTag<ValueType>::value, values.data(), static_cast<uint32_t>( values.size() ) * sizeof( ValueType ), &error );
+    }
+    checkFailure( error, m_vrSystem );
+    assert( byteSize % sizeof( ValueType ) == 0 );
+    values.resize( byteSize / sizeof( ValueType ) );
+    properties[deviceProperty.first] = { std::string( deviceProperty.second ), values };
+  }
+}
+
 void Capture::initActiveSectionSet()
 {
-  TCHAR path[MAX_PATH * 2];
+  TCHAR                 path[MAX_PATH * 2];
+  std::filesystem::path modulePath;
   if ( GetModuleFileName( NULL, path, MAX_PATH ) )
   {
-    strcpy_s( strrchr( path, '\\' ), MAX_PATH, "\\record_controller_actions.json" );
+    modulePath = std::string( path, strrchr( path, '\\' ) );
   }
   else
   {
     LOGE( "GetModuleFileName failed\n" );
   }
 
-  LOGI( "\nSetting action manifest file: %s\n", path );
-  checkFailure( m_vrInput->SetActionManifestPath( path ), "Failed", "Success" );
+  std::string actionManifestPath = ( modulePath / "capture_action_manifest.json" ).string();
+  generateActionManifestFile( actionManifestPath );
 
-  LOGI( "\nGetting action set: %s\n", path );
-  checkFailure( m_vrInput->GetActionSetHandle( "/actions/record", &m_vrActiveActionSet.ulActionSet ), "Failed", "Success" );
+  LOGI( "\nSetting action manifest file: %s\n", actionManifestPath.c_str() );
+  checkFailure( m_vrInput->SetActionManifestPath( actionManifestPath.c_str() ), "Failed", "Success" );
+
+  LOGI( "\nGetting action set: %s\n", actionManifestPath.c_str() );
+  checkFailure( m_vrInput->GetActionSetHandle( "/actions/capture", &m_vrActiveActionSet.ulActionSet ), "Failed", "Success" );
+
+  generateControllerBindingsFile( modulePath );
 }
 
 void Capture::initChaperone()
@@ -1014,8 +1577,37 @@ void Capture::printConfiguration( std::stringstream & ss, VRData::Device const &
      << modelPropertyIt->second.m_value << " / " << serialPropertyIt->second.m_value << std::endl;
 }
 
-std::pair<std::string, vr::VRActionHandle_t> Capture::setupAction( std::vector<std::string> const & actionDescription, std::string const & actionKind )
+std::pair<std::string, Profile> Capture::readProfile( vr::TrackedDeviceIndex_t deviceIndex, VRData::Device const & device ) const
 {
+  auto propertyIt = device.m_stringProperties.find( vr::ETrackedDeviceProperty::Prop_InputProfilePath_String );
+  checkFailure( propertyIt != device.m_stringProperties.end(), "Could not find InputProfilePath information for device " + std::to_string( deviceIndex ) );
+
+  auto     vrResources = vr::VRResources();
+  uint32_t len         = vrResources->GetResourceFullPath( propertyIt->second.m_value.c_str(), "", nullptr, 0 );
+  assert( 0 < len );
+  std::string profilePath;
+  profilePath.resize( len );
+  len = vrResources->GetResourceFullPath( propertyIt->second.m_value.c_str(), "", profilePath.data(), len );
+  assert( len == profilePath.length() );
+
+  std::ifstream resourcesStream( profilePath );
+  if ( !resourcesStream )
+  {
+    throw std::runtime_error( std::format( "Failed to open file <{}> for reading", profilePath ) );
+  }
+
+  cereal::JSONInputArchive resourcesArchive( resourcesStream );
+
+  Profile profile;
+  resourcesArchive( profile );
+
+  return { std::move( profilePath ), std::move( profile ) };
+}
+
+std::tuple<VRData::Action, std::string, vr::VRActionHandle_t> Capture::setupAction( std::vector<std::string> const & actionDescription,
+                                                                                    std::string const &              actionKind )
+{
+  VRData::Action       action;
   std::string          actionString;
   vr::VRActionHandle_t actionHandle = vr::k_ulInvalidActionHandle;
 
@@ -1025,8 +1617,8 @@ std::pair<std::string, vr::VRActionHandle_t> Capture::setupAction( std::vector<s
 
     VRData::Hand hand =
       ( actionDescription[0] == "left" ) ? VRData::Hand::LEFT : ( ( actionDescription[0] == "right" ) ? VRData::Hand::RIGHT : VRData::Hand::NONE );
-    VRData::Action action = { VRData::ActionType::DIG, actionDescription[1], actionDescription[2], hand };
-    actionString          = to_string( action );
+    action       = { VRData::ActionType::BOOLEAN, actionDescription[1], actionDescription[2], hand };
+    actionString = to_string( action );
     LOGI( "\nSet up %s action... %s\n", actionKind.c_str(), actionString.c_str() );
 
     if ( hand != VRData::Hand::NONE )
@@ -1042,7 +1634,7 @@ std::pair<std::string, vr::VRActionHandle_t> Capture::setupAction( std::vector<s
       LOGE( "\tInvalid hand string %s\n", actionDescription[0].c_str() );
     }
   }
-  return std::make_pair( actionString, actionHandle );
+  return { action, actionString, actionHandle };
 }
 
 void Capture::writeHardwareData()
