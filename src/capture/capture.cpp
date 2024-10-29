@@ -19,6 +19,7 @@
 
 #include "shared/logging.h"
 
+#include <cereal/types/optional.hpp>
 #include <source_location>
 
 using namespace std::literals::string_literals;
@@ -27,17 +28,26 @@ using namespace std::literals::string_literals;
 // Command line arguments
 struct Args : MainArguments<Args>
 {
+  bool                     logActions  = option( "logActions", 'l', "log detected actions" );
+  bool                     noNotifyHMD = option( "noNotifications", 'n', "suppress notifications for start, segment, end in HMD" );
+  uint32_t                 notifyTime = option( "note_time", 't', "for how long to show notifications, default: 1000ms" ) = 1000;
   float                    sampleFreq = option( "sampling_freq", 's', "sampling frequency in Hz, default: 2xHMD display frequency" ) = -1.0f;
   std::vector<std::string> segmentAction = option( "segment_action", 'a', "recording segmenting action, e.g. left,trigger,click" )
                                              .validator( []( auto v ) { return v.size() == 3 || v.size() == 0; } );
   std::vector<std::string> startAction = option( "start_action", 'w', "recording starting action, e.g. left,trigger,click, can be same as segmentation action" )
                                            .validator( []( auto v ) { return v.size() == 3 || v.size() == 0; } );
-  bool     noNotifyHMD = option( "noNotifications", 'n', "suppress notifications for start, segment, end in HMD" );
-  uint32_t notifyTime = option( "note_time", 't', "for how long to show notifications, default: 1000ms" ) = 1000;
-  bool     logActions                                                                                     = option( "logActions", 'l', "log detected actions" );
 };
 
-#define SERIALIZE_MAP( Type, values )                           \
+#define SERIALIZE_OPTIONAL( field ) \
+  try                               \
+  {                                 \
+    archive( CEREAL_NVP( field ) ); \
+  }                                 \
+  catch ( ... )                     \
+  {                                 \
+  }
+
+#define SERIALIZE_PSEUDO_MAP( Type, values )                    \
   template <class Archive>                                      \
   void save( Archive & archive ) const                          \
   {                                                             \
@@ -61,15 +71,6 @@ struct Args : MainArguments<Args>
         values.emplace( name, std::move( value ) );             \
       }                                                         \
     } while ( name );                                           \
-  }
-
-#define SERIALIZE_OPTIONAL( field ) \
-  try                               \
-  {                                 \
-    archive( CEREAL_NVP( field ) ); \
-  }                                 \
-  catch ( ... )                     \
-  {                                 \
   }
 
 //==============================================
@@ -168,7 +169,7 @@ struct Inputs
 {
   std::map<std::string, Input> inputs;
 
-  SERIALIZE_MAP( Input, inputs );
+  SERIALIZE_PSEUDO_MAP( Input, inputs );
 };
 
 struct Source
@@ -229,17 +230,6 @@ void prologue( cereal::JSONOutputArchive &, const ControllerBindings & ) {}
 
 //==============================================
 // Representation of the file *_profile.json
-struct InputBindingui
-{
-  std::string image;
-
-  template <class Archive>
-  void serialize( Archive & archive )
-  {
-    archive( CEREAL_NVP( image ) );
-  }
-};
-
 struct InputBlock
 {
   std::string type;
@@ -272,28 +262,18 @@ struct InputSource
 {
   std::map<std::string, InputBlock> inputs;
 
-  SERIALIZE_MAP( InputBlock, inputs );
+  SERIALIZE_PSEUDO_MAP( InputBlock, inputs );
 };
 
 struct Profile
 {
-  std::string    jsonid;
-  std::string    controller_type;
-  std::string    device_class;
-  std::string    input_bindingui_mode;
-  InputBindingui input_bindingui_right;
-  InputSource    input_source;
+  std::string controller_type;
+  InputSource input_source;
 
   template <class Archive>
   void serialize( Archive & archive )
   {
-    archive( CEREAL_NVP( jsonid ),
-             CEREAL_NVP( controller_type ),
-             CEREAL_NVP( input_bindingui_mode ),
-             CEREAL_NVP( input_bindingui_right ),
-             CEREAL_NVP( input_source ) );
-
-    SERIALIZE_OPTIONAL( device_class );
+    archive( CEREAL_NVP( controller_type ), CEREAL_NVP( input_source ) );
   }
 };
 
@@ -1006,13 +986,6 @@ std::vector<VRData::Action> Capture::collectActions( VRData::Hand const & hand )
   assert( ( hand == VRData::Hand::LEFT ) || ( hand == VRData::Hand::RIGHT ) );
   std::string side = ( hand == VRData::Hand::LEFT ) ? "left" : "right";
 
-  // From Keith Bradner (keithb@valvesoftware.com):
-  //  The "type" that components can be is limited - then they'll have peers like "touch", "click", "value" - members that correspond to bindable
-  //  inputs. Additionally, joystick and trackpad automatically have "position", "x", and "y" inputs. You can find more detailed documentation on
-  //  the openvr wiki here: https://github.com/ValveSoftware/openvr/wiki/Input-Profiles under "input source type". As for data types: Click and
-  //  Touch are booleans. Value, X, Y, and Force are Vector1, and Position is Vector2. If there's one you find that I've forgotten let us know
-  //  and we can tell you what it is.
-
   std::vector<VRData::Action> actions;
   for ( auto const & input : m_profile.input_source.inputs )
   {
@@ -1055,9 +1028,8 @@ std::vector<VRData::Action> Capture::collectActions( VRData::Hand const & hand )
         actions.push_back( { VRData::ActionType::VECTOR2D, name, "value", hand } );
         if ( input.second.force )
         {
-          throw std::runtime_error( std::format( "Encountered unsupported component <force> for input type <{}> named <{}>",
-                                                 input.second.type.c_str(),
-                                                 name.c_str() ) );
+          throw std::runtime_error(
+            std::format( "Encountered unsupported component <force> for input type <{}> named <{}>", input.second.type.c_str(), name.c_str() ) );
         }
       }
       else if ( input.second.type == "pose" )
@@ -1126,6 +1098,7 @@ VRData::Device Capture::collectDeviceProperties( const vr::TrackedDeviceIndex_t 
                                                           vr::ETrackedDeviceProperty::Prop_DisplayHiddenArea_Binary_End,
                                                           vr::ETrackedDeviceProperty::Prop_DisplayHiddenArea_Binary_Start,
                                                           vr::ETrackedDeviceProperty::Prop_DisplayMCImageData_Binary,
+                                                          vr::ETrackedDeviceProperty::Prop_GraphicsAdapterLuid_Uint64,
                                                           vr::ETrackedDeviceProperty::Prop_ImuFactoryAccelerometerBias_Vector3,
                                                           vr::ETrackedDeviceProperty::Prop_ImuFactoryAccelerometerScale_Vector3,
                                                           vr::ETrackedDeviceProperty::Prop_ImuFactoryGyroBias_Vector3,
