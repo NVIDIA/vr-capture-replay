@@ -130,30 +130,6 @@ void prologue( cereal::JSONOutputArchive &, const ActionManifest & ) {}
 
 //==============================================
 // Representation of a capture bindings file
-struct Haptic
-{
-  std::string output;
-  std::string path;
-
-  template <class Archive>
-  void serialize( Archive & archive )
-  {
-    archive( CEREAL_NVP( output ), CEREAL_NVP( path ) );
-  }
-};
-
-struct Pose
-{
-  std::string output;
-  std::string path;
-
-  template <class Archive>
-  void serialize( Archive & archive )
-  {
-    archive( CEREAL_NVP( output ), CEREAL_NVP( path ) );
-  }
-};
-
 struct Input
 {
   std::string output;
@@ -187,14 +163,12 @@ struct Source
 
 struct Actions
 {
-  std::vector<Haptic> haptics;
-  std::vector<Pose>   poses;
   std::vector<Source> sources;
 
   template <class Archive>
   void serialize( Archive & archive )
   {
-    archive( CEREAL_NVP( haptics ), CEREAL_NVP( poses ), CEREAL_NVP( sources ) );
+    archive( CEREAL_NVP( sources ) );
   }
 };
 
@@ -1318,11 +1292,6 @@ void Capture::generateActionManifestFile( std::string const & path )
 void Capture::generateControllerBindingsFile( std::filesystem::path const & modulePath )
 {
   ControllerBindings controllerBindings;
-
-  controllerBindings.bindings.actions.haptics.push_back( { "/actions/capture/out/left_haptic", "/user/hand/left/output" } );
-  controllerBindings.bindings.actions.haptics.push_back( { "/actions/capture/out/right_haptic", "/user/hand/right/output" } );
-  controllerBindings.bindings.actions.poses.push_back( { "/actions/capture/in/left_pose", "/user/hand/left/pose/raw" } );
-  controllerBindings.bindings.actions.poses.push_back( { "/actions/capture/in/right_pose", "/user/hand/right/pose/raw" } );
 
   for ( auto const & action : m_hardwareData.m_actions )
   {
