@@ -19,7 +19,6 @@
 
 #include "shared/logging.h"
 
-#include <cereal/types/optional.hpp>
 #include <source_location>
 
 using namespace std::literals::string_literals;
