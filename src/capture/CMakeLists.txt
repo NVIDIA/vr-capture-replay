@@ -26,7 +26,7 @@ add_executable( ${TARGET_NAME}
   ../shared/nvprint.cpp
   ../shared/VRData.h )
 
-target_compile_definitions( ${TARGET_NAME} PUBLIC PROJECT_NAME="${TARGET_NAME}" )
+target_compile_definitions( ${TARGET_NAME} PUBLIC PROJECT_NAME="${TARGET_NAME}" _CRT_SECURE_NO_WARNINGS )
 
 target_link_libraries( ${TARGET_NAME} ${OPENVR_LIBRARIES} )
 

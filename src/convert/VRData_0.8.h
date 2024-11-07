@@ -130,9 +130,9 @@ namespace VRData_0_8_unversioned
 
   enum class ActionType
   {
-    DIG,
-    VEC1,
-    VEC2
+    BOOLEAN,
+    SCALAR,
+    VECTOR2D
   };
 
   struct Action
@@ -381,7 +381,7 @@ namespace VRData_0_8_versioned
   /*
   enum class ActionType
   {
-      DIG, VEC1, VEC2
+      BOOLEAN, SCALAR, VECTOR2D
   };
   */
 

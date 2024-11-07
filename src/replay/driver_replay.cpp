@@ -690,15 +690,15 @@ void OpenVR_ServerDriver::UpdateDevices()
 
         switch ( VRData::ActionType( actionReplayData.action.type ) )
         {
-          case VRData::ActionType::DIG:
+          case VRData::ActionType::BOOLEAN:
             // LOG("sending bool input %s\n", (actionData.val[0]==0.0f)?"false":"true");
             err = input->UpdateBooleanComponent( actionReplayData.handle[0], actionData.val[0], 0.0 );
             break;
-          case VRData::ActionType::VEC1:
+          case VRData::ActionType::SCALAR:
             // LOG("sending vec1 input %f\n", actionData.val[0]);
             err = input->UpdateScalarComponent( actionReplayData.handle[0], actionData.val[0], 0.0 );
             break;
-          case VRData::ActionType::VEC2:
+          case VRData::ActionType::VECTOR2D:
             // LOG("sending vec2 input %f %f\n", actionData.val[0], actionData.val[1]);
             input->UpdateScalarComponent( actionReplayData.handle[0], actionData.val[0], 0.0 );
             err = input->UpdateScalarComponent( actionReplayData.handle[1], actionData.val[1], 0.0 );
@@ -830,7 +830,7 @@ void OpenVR_ServerDriver::initActions()
       vr::EVRInputError err;
       switch ( VRData::ActionType( a.type ) )
       {
-        case VRData::ActionType::DIG:
+        case VRData::ActionType::BOOLEAN:
           name = "/input/" + a.name + "/" + a.input;
           err  = input->CreateBooleanComponent( container, name.c_str(), &ard.handle[0] );
           LOG( "Setting up bool action: %s %s -> %i\n", hand.c_str(), name.c_str(), ard.handle[0] );
@@ -839,7 +839,7 @@ void OpenVR_ServerDriver::initActions()
             LOG( "\tFailed: %i\n", err );
           }
           break;
-        case VRData::ActionType::VEC1:
+        case VRData::ActionType::SCALAR:
           name = "/input/" + a.name + "/" + a.input;
           err  = input->CreateScalarComponent( container, name.c_str(), &ard.handle[0], vr::VRScalarType_Absolute, vr::VRScalarUnits_NormalizedOneSided );
           LOG( "Setting up scalar action: %s %s -> %i\n", hand.c_str(), name.c_str(), ard.handle[0] );
@@ -848,7 +848,7 @@ void OpenVR_ServerDriver::initActions()
             LOG( "\tFailed: %i\n", err );
           }
           break;
-        case VRData::ActionType::VEC2:
+        case VRData::ActionType::VECTOR2D:
           name = "/input/" + a.name + "/x";
           err  = input->CreateScalarComponent( container, name.c_str(), &ard.handle[0], vr::VRScalarType_Absolute, vr::VRScalarUnits_NormalizedTwoSided );
           LOG( "Setting up 2D scalar action: %s %s -> %i\n", hand.c_str(), name.c_str(), ard.handle[0] );

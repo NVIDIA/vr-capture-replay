@@ -103,7 +103,7 @@ namespace VRData
     std::map<uint32_t, PropertyData<std::vector<vr::HmdMatrix34_t>>> m_matrix34ArrayProperties;
     std::map<uint32_t, PropertyData<std::string>>                    m_stringProperties;
     std::map<uint32_t, PropertyData<uint64_t>>                       m_uint64Properties;
-    std::map<uint32_t, PropertyData<std::vector<vr::HmdVector4_t>>>  m_vector4ArrayProperties;
+    std::map<uint32_t, PropertyData<std::vector<float>>>             m_vector4ArrayProperties;    // needs floats here, instead of the expected vr::HmdVector4
 
     template <class Archive>
     void serialize( Archive & archive, std::uint32_t const version )
@@ -172,9 +172,11 @@ namespace VRData
 
   enum class ActionType
   {
-    DIG,
-    VEC1,
-    VEC2
+    BOOLEAN,
+    SCALAR,
+    VECTOR2D,
+    VECTOR3D,
+    UNKNOWN
   };
 
   struct Action
