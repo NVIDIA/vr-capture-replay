@@ -160,19 +160,8 @@ or a tracking file onto `convert_hardware.cmd` or `convert_tracking.cmd` respect
 
 VCR captures and replays the poses of any trackable object in SteamVR. This includes any HMD and controllers, 
 but also VIVE Trackers and similar devices.
-Button inputs can currently only be captured for some controllers. Other controllers will be tracked, i.e.
-their motion will be captured and replayed, but button inputs for these controllers are not captured and 
-replayed.
-
-Currently, the following controllers are supported:
-
-- Oculus Rift controllers
-- Oculus Quest controllers
-- Meta Quest 2 controllers
-- VIVE and VIVE Pro controllers
-
-If a controller is not supported, the capture tool will report an unsupported controller in its output
-and in its log file.
+The VCR ``capture`` tool reads SteamVR profile files to determine the controller's available inputs (buttons, touchpads, etc.).
+This should allow VCR to work with any SteamVR supported controller.
 
 It is possible that a controller is supported, but still refuses to work. Please check the logs - both 
 controllers need to have a valid role (i.e. left or right hand) and generate a list of actions.
