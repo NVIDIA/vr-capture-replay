@@ -1,0 +1,55 @@
+
+name: VCR build
+
+on:
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  create_readme_pdf:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Pandoc conversion
+        uses: docker://pandoc/latex:2.9
+        with:
+          args: -f markdown -t pdf -o readme.pdf README.md
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: readme
+          path: ./readme.pdf
+
+  build:
+    needs: create_readme_pdf
+    name: "Build ${{ matrix.build_type }} on ${{ matrix.os }}"
+    runs-on: ${{matrix.os}}
+    
+    strategy:
+      matrix:
+        os: [windows-latest]
+        build_type: [Release]
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Download Readme
+      uses: actions/download-artifact@v4
+      with:
+        name: readme
+      
+    - name: Build
+      shell: cmd
+      run: ${{github.workspace}}\build.cmd
+    
+    - if: ${{ matrix.build_type == 'Release' }}
+      name: Upload Artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: VCR-${{matrix.os}}
+        path: _out
