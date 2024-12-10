@@ -1,5 +1,5 @@
 
-name: VCR build
+name: VCR build all
 
 on:
   pull_request:
